@@ -1,0 +1,30 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=99
+
+APP=ApRoamClient
+INTERFACE='mon0'
+PID_FILE=/var/run/ApRoamClient.pid
+
+SERVICE_DAEMONIZE=1
+SERVICE_WRITE_PID=1
+
+boot() {
+	iw phy phy0 interface add $INTERFACE type monitor
+	ifconfig $INTERFACE up
+	service_start /usr/local/bin/ApRoamClient
+}
+
+
+start() {
+	iw phy phy0 interface add $INTERFACE type monitor
+	ifconfig $INTERFACE up
+	service_start /usr/local/bin/ApRoamClient
+}
+
+stop() {
+	start-stop-daemon -K -n $APP -p $PID_FILE -s TERM
+	iw dev $INTERFACE del
+	rm -rf $PID_FILE
+}

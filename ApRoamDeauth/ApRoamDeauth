@@ -1,0 +1,31 @@
+#!/bin/sh
+
+/usr/local/bin/busybox renice -1 $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+PORT='555'
+
+mkdir -p $aprdir
+
+/usr/local/bin/busybox nc -l -p $PORT > $aprdir/deauth 2>/dev/null &
+pid=$!
+echo $pid > /var/run/deauth_nc.pid
+
+while true
+do
+	deauthsize=`du -k "$aprdir/deauth" | cut -f1`
+	running=`ps | awk '{print $1}' | grep -c $pid`
+	if [ "$deauthsize" -gt "0" ]; then
+		station=`cat $aprdir/deauth`
+		/usr/local/bin/ApRoamBlock $station &
+		kill $pid >/dev/null 2>&1
+		/usr/local/bin/busybox nc -l -p $PORT > $aprdir/deauth 2>/dev/null &
+		pid=$!
+		echo $pid > /var/run/deauth_nc.pid
+	elif [ "$running" -eq "0" ]; then
+		/usr/local/bin/busybox nc -l -p $PORT > $aprdir/deauth 2>/dev/null &
+		pid=$!
+		echo $pid > /var/run/deauth_nc.pid
+	fi
+	sleep 1
+done

@@ -1,0 +1,269 @@
+#!/bin/sh
+
+renice -1 $$ >/dev/null 2>&1
+
+#### Paths. ####
+
+aprdir='/tmp/ApRoam'
+log='/var/zram/ApRoamControl.log'
+
+#### SIGNAL AVERAGE FUNCTION ####
+
+sig_avg() {
+	if [ -f $aprdir/sigavg.$1 ]; then
+		DEAUTHSTATION=1
+		rm -f $aprdir/sigavg.$1
+	else
+		echo $2 > $aprdir/sigavg.$1
+		DEAUTHSTATION=0
+	fi
+}
+
+#### INTIALIZE VARIABLES AND CLEAN UP. ####
+
+AP1ADDRESS='192.168.1.6'
+AP2ADDRESS='192.168.1.4'
+AP3ADDRESS='192.168.1.2'
+DEAUTHPORT='555'
+DEAUTHSTATION='1'
+rm -f $aprdir/sigavg*
+mkdir -p $aprdir
+
+#### MAIN LOOP ####
+
+while true
+do
+	STARTTIME=`date +%s`
+	DATE=`date`
+	echo "-------------------- $DATE --------------------" >> $log
+
+	#### RETREIVE STATION DATA. ####
+
+	# Retreive Access Point 1 Station Dump.
+	touch $aprdir/ap1/station.lock >/dev/null 2>&1
+	sleep .15
+	AP1STATIONS=`grep "Station" $aprdir/ap1/station.dump 2>/dev/null | awk '{print $2}'`
+	AP1STATIONCOUNT=`grep -c "Station" $aprdir/ap1/station.dump 2>/dev/null`
+        rm -f $aprdir/ap1/station.lock >/dev/null 2>&1
+
+	# Retreive Access Point 2 Station Dump.
+        touch $aprdir/ap2/station.lock >/dev/null 2>&1
+        sleep .15
+        AP2STATIONS=`grep "Station" $aprdir/ap2/station.dump 2>/dev/null | awk '{print $2}'`
+        AP2STATIONCOUNT=`grep -c "Station" $aprdir/ap2/station.dump 2>/dev/null`
+        rm -f $aprdir/ap2/station.lock >/dev/null 2>&1
+
+	# Retreive Access Point 3 Station Dump.
+        touch $aprdir/ap3/station.lock >/dev/null 2>&1
+        sleep .15
+        AP3STATIONS=`grep "Station" $aprdir/ap3/station.dump 2>/dev/null | awk '{print $2}'`
+        AP3STATIONCOUNT=`grep -c "Station" $aprdir/ap3/station.dump 2>/dev/null`
+        rm -f $aprdir/ap3/station.lock >/dev/null 2>&1
+
+	# Combine All Access Point Clients.
+	STATIONS="$AP1STATIONS $AP2STATIONS $AP3STATIONS"
+
+	STATIONCOUNT=$(($AP1STATIONCOUNT+$AP2STATIONCOUNT+$AP3STATIONCOUNT))
+
+	#### RETREIVE NETWORK DATA AND DO PREPROCESSING. ####
+
+        # Retreive Access Point 1 Network Data Dump.
+	touch $aprdir/ap1/network.lock >/dev/null 2>&1
+	sleep .15
+	# Preprocess Network Data By Greping Out Unwanted Packets.
+	tcpdump -e -t -r $aprdir/ap1/ap1_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap1_network.dump
+	rm -f $aprdir/ap1/network.lock >/dev/null 2>&1
+
+        # Retreive Access Point 2 Network Data Dump.
+	touch $aprdir/ap2/network.lock >/dev/null 2>&1
+	sleep .15
+	# Preprocess Network Data By Greping Out Unwanted Packets.
+	tcpdump -e -t -r $aprdir/ap2/ap2_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap2_network.dump
+	rm -f $aprdir/ap2/network.lock >/dev/null 2>&1
+
+	# Retreive Access Point 3 Network Data Dump.
+	touch $aprdir/ap3/network.lock >/dev/null 2>&1
+	sleep .15
+	# Preprocess Network Data By Greping Out Unwanted Packets.
+	tcpdump -e -t -r $aprdir/ap3/ap3_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap3_network.dump
+	rm -f $aprdir/ap3/network.lock >/dev/null 2>&1
+
+	#### RETREIVE STATION SIGNAL VALUES. ####
+
+	while [ "${STATIONCOUNT}" -gt "0" ]
+	do
+		STATION=`echo $STATIONS | awk -v x=$STATIONCOUNT '{print $x}'`
+
+		AP1SIGNAL=`grep $STATION $aprdir/ap1_network.dump 2>/dev/null | grep -E -o "\-?[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+		if [ "$AP1SIGNAL" = "" ]; then
+			AP1SIGNAL='-99'
+		fi
+		AP2SIGNAL=`grep $STATION $aprdir/ap2_network.dump 2>/dev/null | grep -E -o "\-?[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+		if [ "$AP2SIGNAL" = "" ]; then
+                        AP2SIGNAL='-99'
+                fi
+		AP3SIGNAL=`grep $STATION $aprdir/ap3_network.dump 2>/dev/null | grep -E -o "\-?[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+		if [ "$AP3SIGNAL" = "" ]; then
+                        AP3SIGNAL='-99'
+                fi
+
+		#### LOG. ####
+
+		echo " " >> $log
+		echo "STATION=$STATION" >> $log
+		echo "AP1SIGNAL=$AP1SIGNAL" >> $log
+		echo "AP2SIGNAL=$AP2SIGNAL" >> $log
+		echo "AP3SIGNAL=$AP3SIGNAL" >> $log
+		CONNECTEDTOAP1=`echo $AP1STATIONS | grep -c $STATION`
+		CONNECTEDTOAP2=`echo $AP2STATIONS | grep -c $STATION`
+		CONNECTEDTOAP3=`echo $AP3STATIONS | grep -c $STATION`
+
+		#### PREVENT STATIONS FROM CONSTANTLY HOPPING AROUND DIFFERENT ACCESS POINTS DO TO SIMULAR SIGNAL LEVELS. ####
+
+		ADJUST=0
+		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
+			if [ "${AP1SIGNAL}" -lt "${AP2SIGNAL}" -o "${AP1SIGNAL}" -lt "${AP3SIGNAL}" ]; then
+				if [ "${AP1SIGNAL}" -gt "-45" ]; then
+					ADJUST=99
+				elif [ "${AP1SIGNAL}" -gt "-50" ]; then
+					ADJUST=15
+				elif [ "${AP1SIGNAL}" -gt "-60" ]; then
+					ADJUST=12
+                        	elif [ "${AP1SIGNAL}" -gt "-65" ]; then
+                                	ADJUST=8
+				elif [ "${AP1SIGNAL}" -gt "-70" ]; then
+					ADJUST=4
+                        	else
+                                	ADJUST=2
+                        	fi
+			fi
+		fi
+		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
+			if [ "${AP2SIGNAL}" -lt "${AP1SIGNAL}" -o "${AP2SIGNAL}" -lt "${AP3SIGNAL}" ]; then
+				if [ "${AP2SIGNAL}" -gt "-45" ]; then
+					ADJUST=99
+				elif [ "${AP2SIGNAL}" -gt "-50" ]; then
+					ADJUST=15
+				elif [ "${AP2SIGNAL}" -gt "-60" ]; then
+					ADJUST=12
+				elif [ "${AP2SIGNAL}" -gt "-65" ]; then
+					ADJUST=8
+				elif [ "${AP2SIGNAL}" -gt "-70" ]; then
+					ADJUST=4
+				else
+					ADJUST=2
+				fi
+			fi
+		fi
+		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
+			if [ "${AP3SIGNAL}" -lt "${AP1SIGNAL}" -o "${AP3SIGNAL}" -lt "${AP2SIGNAL}" ]; then
+				if [ "${AP3SIGNAL}" -gt "-45" ]; then
+					ADJUST=99
+				elif [ "${AP3SIGNAL}" -gt "-50" ]; then
+					ADJUST=15
+				elif [ "${AP3SIGNAL}" -gt "-60" ]; then
+					ADJUST=12
+				elif [ "${AP3SIGNAL}" -gt "-65" ]; then
+					ADJUST=8
+				elif [ "${AP3SIGNAL}" -gt "-70" ]; then
+					ADJUST=4
+				else
+					ADJUST=2
+				fi
+			fi
+		fi
+
+		#### LOG. ####
+
+		echo "ADJUST=$ADJUST" >> $log
+		echo "CONNECTED TO AP1=$CONNECTEDTOAP1" >> $log
+		echo "CONNECTED TO AP2=$CONNECTEDTOAP2" >> $log
+		echo "CONNECTED TO AP3=$CONNECTEDTOAP3" >> $log
+
+		#### COMPARE SIGNAL LEVELS WITH OTHER ACCESS POINTS AND SEND DEAUTHENTICATION TO STATION IF ANOTHER ACCESS POINT HAS A BETTER SIGNAL. ####
+
+		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
+			if [ "${AP2SIGNAL}" -gt "$(($AP1SIGNAL+$ADJUST))" -a "${AP2SIGNAL}" -ne "-99" -a "${AP1SIGNAL}" -ne "-99" ]; then
+				sig_avg "$STATION" ap2
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+					echo "$STATION deauthenticated from AP1!" >> $log
+					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+			elif [ "${AP3SIGNAL}" -gt "$(($AP1SIGNAL+$ADJUST))" -a "${AP3SIGNAL}" -ne "-99" -a "${AP1SIGNAL}" -ne "-99" ]; then
+                  		sig_avg "$STATION" ap3
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+					echo "$STATION deauthenticated from AP1!" >> $log
+					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+			elif [ -f $aprdir/sigavg.$STATION ]; then
+				AP=`cat $aprdir/sigavg.$STATION`
+				if [ "$AP" = "ap2" -a "${AP2SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				elif [ "$AP" = "ap3" -a "${AP3SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				fi
+			fi
+		fi
+		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
+                        if [ "${AP1SIGNAL}" -gt "$(($AP2SIGNAL+$ADJUST))" -a "${AP1SIGNAL}" -ne "-99" -a "${AP2SIGNAL}" -ne "-99" ]; then
+				sig_avg "$STATION" ap1
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+                                	echo "$STATION deauthenticated from AP2!" >> $log
+                                	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+                        elif [ "${AP3SIGNAL}" -gt "$(($AP2SIGNAL+$ADJUST))" -a "${AP3SIGNAL}" -ne "-99" -a "${AP2SIGNAL}" -ne "-99" ]; then
+				sig_avg "$STATION" ap3
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+                                	echo "$STATION deauthenticated from AP2!" >> $log
+                                	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+			elif [ -f $aprdir/sigavg.$STATION ]; then
+				AP=`cat $aprdir/sigavg.$STATION`
+				if [ "$AP" = "ap1" -a "${AP1SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				elif [ "$AP" = "ap3" -a "${AP3SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				fi
+                        fi
+                fi
+		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
+                        if [ "${AP1SIGNAL}" -gt "$(($AP3SIGNAL+$ADJUST))" -a "${AP1SIGNAL}" -ne "-99" -a "${AP3SIGNAL}" -ne "-99" ]; then
+				sig_avg "$STATION" ap1
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+					echo "$STATION deauthenticated from AP3!" >> $log
+					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+                        elif [ "${AP2SIGNAL}" -gt "$(($AP3SIGNAL+$ADJUST))" -a "${AP2SIGNAL}" -ne "-99" -a "${AP3SIGNAL}" -ne "-99" ]; then
+				sig_avg "$STATION" ap2
+				if [ "$DEAUTHSTATION" -eq "1" ]; then
+					echo "$STATION deauthenticated from AP3!" >> $log
+					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
+				fi
+			elif [ -f $aprdir/sigavg.$STATION ]; then
+				AP=`cat $aprdir/sigavg.$STATION`
+				if [ "$AP" = "ap1" -a "${AP1SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				elif [ "$AP" = "ap2" -a "${AP2SIGNAL}" -ne "-99" ]; then
+					rm -f $aprdir/sigavg.$STATION
+				fi
+                        fi
+                fi
+		STATIONCOUNT=$(($STATIONCOUNT-1))
+	done
+
+	#### LOG. ####
+
+	echo " " >> $log
+	DATE=`date`
+        echo "-------------------- $DATE --------------------" >> $log
+	echo " " >> $log
+
+	#### DYNAMICALLY ADJUST SLEEP TIME BASED ON HOW LONG IT TOOK TO EXECUTE.
+
+	ENDTIME=`date +%s`
+	EXETIME=$(($ENDTIME-$STARTTIME))
+	SLEEPTIME=$((10-$EXETIME))
+	if [ "$SLEEPTIME" -gt "0" ]; then
+		sleep $SLEEPTIME
+	fi
+done

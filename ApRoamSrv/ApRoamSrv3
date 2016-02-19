@@ -1,0 +1,29 @@
+#!/bin/sh
+
+renice -1 --pid $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+PORT='403'
+
+mkdir -p $aprdir/ap3
+
+while true
+do
+        if [ ! -f "$aprdir/ap3/network.lock" ]; then
+		nc -l -p $PORT > $aprdir/ap3/ap3_network.dump 2>/dev/null &
+		pid=$!
+		echo $pid > /var/run/ApRoamSrv3_nc.pid
+                loop=1
+                while [ "${loop}" -eq "1" ]
+                do
+			dumpsize=`stat --printf="%s" $aprdir/ap3/ap3_network.dump`
+			if [ -f "$aprdir/ap3/network.lock" -o "$dumpsize" -gt "25600000" ]; then
+				kill $pid >/dev/null 2>&1
+				loop=0
+			else
+				sleep .1
+			fi
+		done
+	fi
+	sleep .1
+done

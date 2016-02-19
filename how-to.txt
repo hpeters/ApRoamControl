@@ -1,0 +1,54 @@
+First your Openwrt access points will need to have the following installed.
+
+ebtables
+hostapd-utils
+nc  a recompiled version of busybox with nc server support (or the full version of busybox?) or netcat
+renice  either a recompiled version of busybox with renice support (or the full version of busybox?)
+# If you dont care about setting the process priority you can just comment out the lines with renice in them.
+tcpdump or tcpdump-mini
+
+If your /tmp directory is not mounted using tmpfs then you should change any references to the /tmp directory to a directory that is mounted
+using tmpfs this will improve performance and reduce drive wear.
+You should alsow change any ip addresses to what you are using.
+
+On the Openwrt access points:
+
+Create the directory /usr/local/bin
+Copy ApRoamBlock/ApRoamBlock to /usr/local/bin/
+Copy ApRoamClient/ApRoamClient to /usr/local/bin/
+Copy ApRoamDeauth/ApRoamDeauth to /usr/local/bin/
+copy ApRoamSta/ApRoamSta to /usr/local/bin/
+# If using included precompiled busybox binary.
+Copy Busybox/busybox /usr/local/bin/ (MIPS processor only)
+
+Copy etc/init.d/openwrt/ApRoamClient /etc/init.d/
+Copy etc/init.d/openwrt/ApRoamDeauth /etc/init.d/
+Copy etc/init.d/openwrt/ApRoamSta /etc/init.d/
+
+On the Server ( ApRoamControl machine ):
+
+Create the directory /usr/local/bin
+Copy ApRoamControl/ApRoamControl /usr/local/bin/
+# You will probably want to change the log path in the script to something else. (/tmp/ApRoamControl.log /var/log/ApRoamControl.log etc)
+Copy etc/logrotate.d/ApRoamControl /etc/logrotate.d/
+# Change the log path to what you set in ApRoamControl.
+Copy ApRoamSrv/ApRoamSrv1 /usr/local/bin/
+Copy ApRoamSrv/ApRoamSrv2 /usr/local/bin/
+Copy ApRoamSrv/ApRoamSrv3 /usr/local/bin/
+# If you need more than three access points just copy ApRoamSrv1 to ApRoamSrv4 etc.. and change the port numbers in the script (401 to 404 etc..).
+Copy ApRoamSta/ApRoamSta1 /usr/local/bin/
+Copy ApRoamSta/ApRoamSta2 /usr/local/bin/
+Copy ApRoamSta/ApRoamSta3 /usr/local/bin/
+# If you need more than three access points just copy ApRoamSta1 to ApRoamSta4 etc.. and change the port numbers in the script (601 to 604 etc..).
+Copy etc/init.d/server/ApRoamControl /etc/init.d/
+Copy etc/init.d/server/ApRoamSrv1 /etc/init.d/
+Copy etc/init.d/server/ApRoamSrv2 /etc/init.d/
+Copy etc/init.d/server/ApRoamSrv3 /etc/init.d/
+# If you need more than three access points just copy ApRoamSrv1 to ApRoamSrv4 etc.. and change any internal references from ApRoamSrv1 to ApRoamSrv4 etc.
+Copy etc/init.d/server/ApRoamSta1 /etc/init.d/
+Copy etc/init.d/server/ApRoamSta2 /etc/init.d/
+Copy etc/init.d/server/ApRoamSta3 /etc/init.d/
+# If you need more than three access points just copy ApRoamSta1 to ApRoamSta4 etc.. and change any internal references from ApRoamSta1 to ApRoamSta4 etc.
+
+Once you have all the paths, ip addresses and ports set correctly just start up all the init.d scripts /etc/init.d/ApRoamControl start etc. There start order shouldn't matter.
+

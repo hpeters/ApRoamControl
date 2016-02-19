@@ -1,0 +1,9 @@
+#!/bin/sh
+
+/usr/local/bin/busybox renice -1 $$ >/dev/null 2>&1
+
+while true
+do
+	tcpdump -U -s 100 -i mon0 -w - 2>/dev/null | nc 192.168.1.1 401 >/dev/null 2>&1
+done
+

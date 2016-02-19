@@ -1,0 +1,8 @@
+/var/zram/ApRoamControl.log {
+	daily
+        rotate 7
+	size 1024k
+	su root adm
+	compress
+	copytruncate
+}

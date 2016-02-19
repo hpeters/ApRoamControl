@@ -1,0 +1,28 @@
+#!/bin/sh
+
+renice -1 --pid $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+PORT='601'
+
+mkdir -p $aprdir/ap1
+
+while true
+do
+        if [ ! -f "$aprdir/ap1/station.lock" ]; then
+		nc -l -p $PORT > $aprdir/ap1/station.dump 2>/dev/null &
+		pid=$!
+		echo $pid > /var/run/ApRoamSta1_nc.pid
+                loop=1
+                while [ "${loop}" -eq "1" ]
+                do
+                        if [ -f "$aprdir/ap1/station.lock" ]; then
+				kill $pid >/dev/null 2>&1
+				loop=0
+			else
+				sleep .1
+			fi
+		done
+	fi
+	sleep .1
+done
