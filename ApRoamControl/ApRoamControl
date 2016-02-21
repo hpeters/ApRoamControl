@@ -126,15 +126,15 @@ do
 				if [ "${AP1SIGNAL}" -gt "-45" ]; then
 					ADJUST=99
 				elif [ "${AP1SIGNAL}" -gt "-50" ]; then
-					ADJUST=15
+					ADJUST=18
 				elif [ "${AP1SIGNAL}" -gt "-60" ]; then
-					ADJUST=12
+					ADJUST=15
                         	elif [ "${AP1SIGNAL}" -gt "-65" ]; then
-                                	ADJUST=8
+                                	ADJUST=10
 				elif [ "${AP1SIGNAL}" -gt "-70" ]; then
-					ADJUST=4
+					ADJUST=6
                         	else
-                                	ADJUST=2
+                                	ADJUST=4
                         	fi
 			fi
 		fi
@@ -143,15 +143,15 @@ do
 				if [ "${AP2SIGNAL}" -gt "-45" ]; then
 					ADJUST=99
 				elif [ "${AP2SIGNAL}" -gt "-50" ]; then
-					ADJUST=15
+					ADJUST=18
 				elif [ "${AP2SIGNAL}" -gt "-60" ]; then
-					ADJUST=12
+					ADJUST=15
 				elif [ "${AP2SIGNAL}" -gt "-65" ]; then
-					ADJUST=8
+					ADJUST=10
 				elif [ "${AP2SIGNAL}" -gt "-70" ]; then
-					ADJUST=4
+					ADJUST=6
 				else
-					ADJUST=2
+					ADJUST=4
 				fi
 			fi
 		fi
@@ -160,15 +160,15 @@ do
 				if [ "${AP3SIGNAL}" -gt "-45" ]; then
 					ADJUST=99
 				elif [ "${AP3SIGNAL}" -gt "-50" ]; then
-					ADJUST=15
+					ADJUST=18
 				elif [ "${AP3SIGNAL}" -gt "-60" ]; then
-					ADJUST=12
+					ADJUST=15
 				elif [ "${AP3SIGNAL}" -gt "-65" ]; then
-					ADJUST=8
+					ADJUST=10
 				elif [ "${AP3SIGNAL}" -gt "-70" ]; then
-					ADJUST=4
+					ADJUST=6
 				else
-					ADJUST=2
+					ADJUST=4
 				fi
 			fi
 		fi

@@ -25,6 +25,63 @@ Copy etc/init.d/openwrt/ApRoamClient /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamDeauth /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamSta /etc/init.d/
 
+You will need to modify the /lib/netifd/hostapd.sh file.
+Firt back it up cp /lib/netifd/hostapd.sh /lib/netifd/hostapd.sh.orig
+The add this below line number 73.
+# Extra options.
+append base_cfg "ap_max_inactivity=5" "$N"
+
+original:
+hostapd_prepare_device_config() {
+        local config="$1"
+        local driver="$2"
+
+        local base="${config%%.conf}"
+        local base_cfg=
+
+        json_get_vars country country_ie beacon_int doth require_mode
+
+        hostapd_set_log_options base_cfg
+
+        set_default country_ie 1
+        set_default doth 1
+
+        [ -n "$country" ] && {
+                append base_cfg "country_code=$country" "$N"
+
+                [ "$country_ie" -gt 0 ] && append base_cfg "ieee80211d=1" "$N"
+                [ "$hwmode" = "a" -a "$doth" -gt 0 ] && append base_cfg "ieee80211h=1" "$N"
+        }
+        [ -n "$hwmode" ] && append base_cfg "hw_mode=$hwmode" "$N"
+
+modified:
+hostapd_prepare_device_config() {
+        local config="$1"
+        local driver="$2"
+
+        local base="${config%%.conf}"
+        local base_cfg=
+
+        json_get_vars country country_ie beacon_int doth require_mode
+
+        hostapd_set_log_options base_cfg
+
+        set_default country_ie 1
+        set_default doth 1
+	# Extra options.
+	append base_cfg "ap_max_inactivity=5" "$N"
+
+        [ -n "$country" ] && {
+                append base_cfg "country_code=$country" "$N"
+
+                [ "$country_ie" -gt 0 ] && append base_cfg "ieee80211d=1" "$N"
+                [ "$hwmode" = "a" -a "$doth" -gt 0 ] && append base_cfg "ieee80211h=1" "$N"
+        }
+        [ -n "$hwmode" ] && append base_cfg "hw_mode=$hwmode" "$N"
+
+This will allow for the access point to report accurately the currently active stations.
+Otherwise by default it will report stations even if they have been disconnected for five minutes.
+
 On the Server ( ApRoamControl machine ):
 
 Create the directory /usr/local/bin
