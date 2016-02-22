@@ -15,12 +15,14 @@ On the Openwrt access points:
 
 Create the directory /usr/local/bin
 Copy ApRoamBlock/ApRoamBlock to /usr/local/bin/
+Copy ApRoamChkMon/ApRoamChkMon to /usr/local/bin/
 Copy ApRoamClient/ApRoamClient to /usr/local/bin/
 Copy ApRoamDeauth/ApRoamDeauth to /usr/local/bin/
-copy ApRoamSta/ApRoamSta to /usr/local/bin/
+Copy ApRoamSta/ApRoamSta to /usr/local/bin/
 # If using included precompiled busybox binary.
 Copy Busybox/busybox /usr/local/bin/ (MIPS processor only)
 
+Copy etc/init.d/openwrt/ApRoamChkMon /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamClient /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamDeauth /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamSta /etc/init.d/

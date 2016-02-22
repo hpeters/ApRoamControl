@@ -1,0 +1,12 @@
+#!/bin/sh
+
+while true
+do
+	sleep 10
+	mon0=`ifconfig | grep -c mon0`
+	if [ "$mon0" -lt "1" ]; then
+		/etc/init.d/ApRoamClient stop
+		/etc/init.d/ApRoamClient start
+	fi
+done
+
