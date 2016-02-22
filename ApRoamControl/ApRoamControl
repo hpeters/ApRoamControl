@@ -11,8 +11,14 @@ log='/var/zram/ApRoamControl.log'
 
 sig_avg() {
 	if [ -f $aprdir/sigavg.$1 ]; then
-		DEAUTHSTATION=1
-		rm -f $aprdir/sigavg.$1
+		AP=`cat $aprdir/sigavg.$1`
+		if [ "$AP" = "$2" ]; then
+			DEAUTHSTATION=1
+			rm -f $aprdir/sigavg.$1
+		else
+			echo $2 > $aprdir/sigavg.$1
+			DEAUTHSTATION=0
+		fi
 	else
 		echo $2 > $aprdir/sigavg.$1
 		DEAUTHSTATION=0
