@@ -7,20 +7,38 @@ renice -1 $$ >/dev/null 2>&1
 aprdir='/tmp/ApRoam'
 log='/var/zram/ApRoamControl.log'
 
-#### SIGNAL AVERAGE FUNCTION ####
+#### SIGNAL PROCESSING FUNCTION ####
 
-sig_avg() {
-	if [ -f $aprdir/sigavg.$1 ]; then
-		AP=`cat $aprdir/sigavg.$1`
-		if [ "$AP" = "$2" ]; then
-			DEAUTHSTATION=1
-			rm -f $aprdir/sigavg.$1
+sig_proc() {
+	# On the ap the station is currently connected to calculate the signal difference between now and the previously detected signal.
+	if [ -f $aprdir/${2}signal.$1 ]; then
+		PREVSIGNAL=`cat $aprdir/${2}signal.$1 | cut -d '-' -f2`
+		SIGNAL=`echo $3 | cut -d '-' -f2`
+		if [ "$SIGNAL" -gt "$PREVSIGNAL" ]; then
+			SIGDIFF=$(($SIGNAL-$PREVSIGNAL))
 		else
-			echo $2 > $aprdir/sigavg.$1
-			DEAUTHSTATION=0
+			SIGDIFF=0
 		fi
 	else
-		echo $2 > $aprdir/sigavg.$1
+		SIGDIFF=0
+	fi
+	# On the ap the station is currently recieving a stronger signal calculate the signal difference between now and the previously detected signal.
+        if [ -f $aprdir/${4}signal.$1 ]; then
+		PREVSIGNAL2=`cat $aprdir/${4}signal.$1 | cut -d '-' -f2`
+                SIGNAL2=`echo $5 | cut -d '-' -f2`
+                if [ "$PREVSIGNAL2" -gt "$SIGNAL2" -a "$PREVSIGNAL" -ne "99" ]; then
+                        SIG2DIFF=$(($PREVSIGNAL2-$SIGNAL2))
+                else
+                        SIG2DIFF=0
+                fi
+        else
+                SIG2DIFF=0
+        fi
+	# Check the signal difference if it was large it might have been a bad signal so don't deauthenticate. Otherwise deauthenticate.
+	if [ "$SIGDIFF" -lt "23" -a "$SIG2DIFF" -lt "23" ]; then
+		DEAUTHSTATION=1
+	else
+		# The signal difference was large so ignore it and don't deauthenticate.
 		DEAUTHSTATION=0
 	fi
 }
@@ -32,7 +50,7 @@ AP2ADDRESS='192.168.1.4'
 AP3ADDRESS='192.168.1.2'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
-rm -f $aprdir/sigavg*
+rm -f $aprdir/ap*signal.*
 mkdir -p $aprdir
 
 #### MAIN LOOP ####
@@ -138,9 +156,9 @@ do
                         	elif [ "${AP1SIGNAL}" -gt "-65" ]; then
                                 	ADJUST=10
 				elif [ "${AP1SIGNAL}" -gt "-70" ]; then
-					ADJUST=6
+					ADJUST=8
                         	else
-                                	ADJUST=4
+					ADJUST=6
                         	fi
 			fi
 		fi
@@ -155,9 +173,9 @@ do
 				elif [ "${AP2SIGNAL}" -gt "-65" ]; then
 					ADJUST=10
 				elif [ "${AP2SIGNAL}" -gt "-70" ]; then
-					ADJUST=6
+					ADJUST=8
 				else
-					ADJUST=4
+					ADJUST=6
 				fi
 			fi
 		fi
@@ -172,9 +190,9 @@ do
 				elif [ "${AP3SIGNAL}" -gt "-65" ]; then
 					ADJUST=10
 				elif [ "${AP3SIGNAL}" -gt "-70" ]; then
-					ADJUST=6
+					ADJUST=8
 				else
-					ADJUST=4
+					ADJUST=6
 				fi
 			fi
 		fi
@@ -190,70 +208,53 @@ do
 
 		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
 			if [ "${AP2SIGNAL}" -gt "$(($AP1SIGNAL+$ADJUST))" -a "${AP2SIGNAL}" -ne "-99" -a "${AP1SIGNAL}" -ne "-99" ]; then
-				sig_avg "$STATION" ap2
+				sig_proc "$STATION" ap1 $AP1SIGNAL ap2 $AP2SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
 					echo "$STATION deauthenticated from AP1!" >> $log
 					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
 			elif [ "${AP3SIGNAL}" -gt "$(($AP1SIGNAL+$ADJUST))" -a "${AP3SIGNAL}" -ne "-99" -a "${AP1SIGNAL}" -ne "-99" ]; then
-                  		sig_avg "$STATION" ap3
+				sig_proc "$STATION" ap1 $AP1SIGNAL ap3 $AP3SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
 					echo "$STATION deauthenticated from AP1!" >> $log
 					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
-				fi
-			elif [ -f $aprdir/sigavg.$STATION ]; then
-				AP=`cat $aprdir/sigavg.$STATION`
-				if [ "$AP" = "ap2" -a "${AP2SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
-				elif [ "$AP" = "ap3" -a "${AP3SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
 				fi
 			fi
 		fi
 		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
                         if [ "${AP1SIGNAL}" -gt "$(($AP2SIGNAL+$ADJUST))" -a "${AP1SIGNAL}" -ne "-99" -a "${AP2SIGNAL}" -ne "-99" ]; then
-				sig_avg "$STATION" ap1
+				sig_proc "$STATION" ap2 $AP2SIGNAL ap1 $AP1SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
                                 	echo "$STATION deauthenticated from AP2!" >> $log
                                 	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
                         elif [ "${AP3SIGNAL}" -gt "$(($AP2SIGNAL+$ADJUST))" -a "${AP3SIGNAL}" -ne "-99" -a "${AP2SIGNAL}" -ne "-99" ]; then
-				sig_avg "$STATION" ap3
+				sig_proc "$STATION" ap2 $AP2SIGNAL ap3 $AP3SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
                                 	echo "$STATION deauthenticated from AP2!" >> $log
                                 	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-			elif [ -f $aprdir/sigavg.$STATION ]; then
-				AP=`cat $aprdir/sigavg.$STATION`
-				if [ "$AP" = "ap1" -a "${AP1SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
-				elif [ "$AP" = "ap3" -a "${AP3SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
-				fi
-                        fi
+			fi
                 fi
 		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
                         if [ "${AP1SIGNAL}" -gt "$(($AP3SIGNAL+$ADJUST))" -a "${AP1SIGNAL}" -ne "-99" -a "${AP3SIGNAL}" -ne "-99" ]; then
-				sig_avg "$STATION" ap1
+				sig_proc "$STATION" ap3 $AP3SIGNAL ap1 $AP1SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
 					echo "$STATION deauthenticated from AP3!" >> $log
 					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
                         elif [ "${AP2SIGNAL}" -gt "$(($AP3SIGNAL+$ADJUST))" -a "${AP2SIGNAL}" -ne "-99" -a "${AP3SIGNAL}" -ne "-99" ]; then
-				sig_avg "$STATION" ap2
+				sig_proc "$STATION" ap3 $AP3SIGNAL ap2 $AP2SIGNAL
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
 					echo "$STATION deauthenticated from AP3!" >> $log
 					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-			elif [ -f $aprdir/sigavg.$STATION ]; then
-				AP=`cat $aprdir/sigavg.$STATION`
-				if [ "$AP" = "ap1" -a "${AP1SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
-				elif [ "$AP" = "ap2" -a "${AP2SIGNAL}" -ne "-99" ]; then
-					rm -f $aprdir/sigavg.$STATION
-				fi
-                        fi
-                fi
+			fi
+		fi
+		# Save current station signal for all access points.
+		echo $AP1SIGNAL > $aprdir/ap1signal.$STATION
+		echo $AP2SIGNAL > $aprdir/ap2signal.$STATION
+		echo $AP3SIGNAL > $aprdir/ap3signal.$STATION
 		STATIONCOUNT=$(($STATIONCOUNT-1))
 	done
 
