@@ -89,6 +89,29 @@ do
 
 	STATIONCOUNT=$(($AP1STATIONCOUNT+$AP2STATIONCOUNT+$AP3STATIONCOUNT))
 
+	# Ping Stations To Improve Chance Of Retreiving A Signal.
+	COUNT=$STATIONCOUNT
+	while [ "$COUNT" -gt "0" ]
+	do
+		STATION=`echo $STATIONS | awk -v x=$COUNT '{print $x}'`
+		# First Try Retreiving Ip Address From Dnsmasq Lease File.
+		ip=`cat /var/lib/misc/dnsmasq.leases | grep -m1 "$STATION" | awk '{print $3}'`
+		if [ "$ip" = "" ]; then
+			# Second Try Retreiving Ip Address From Arp Cache.
+			ip=`cat /proc/net/arp | grep -m1 "$STATION" | awk '{print $1}'`
+			if [ "$ip" = "" ]; then
+				# Third Ping Every Ip Address On Subnet.
+				fping -b1 -c1 -i1 -q -r0 -t1 -g 192.168.1.0/24 >/dev/null 2>&1
+				COUNT=0
+			else
+				ping -i .05 -c 1 -s 0 $ip >/dev/null 2>&1 &
+			fi
+		else
+			ping -i .05 -c 1 -s 0 $ip >/dev/null 2>&1 &
+		fi
+		COUNT=$(($COUNT-1))
+	done
+
 	#### RETREIVE NETWORK DATA AND DO PREPROCESSING. ####
 
         # Retreive Access Point 1 Network Data Dump.

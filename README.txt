@@ -26,7 +26,7 @@ long as the wifi supports monitor mode.
 The Server part of ApRoamControl was tested on a Debian based intel dual core atom processor machine.
 I'm sure it could be modified to run on ther distros easly maybe even openwrt.
 
-One (big) limitation is all access points have to be on the same channel this is because they have to be able to serve both clients and monitor the
+One (big) limitation is all access points have to be on the same channel this is because they have to be able to serve both clients(stations) and monitor the
 clients at the same time therefore the wifi radio is not able to switch frequencies.
 
 That means ApRoamControl wont work well in a wifi setup with multiple access points that is under a heavy traffic load.
