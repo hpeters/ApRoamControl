@@ -50,6 +50,10 @@ AP2ADDRESS='192.168.1.4'
 AP3ADDRESS='192.168.1.2'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
+PINGLOOP='0'
+# PINGTOTAL sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
+# To set PINGTOTAL: -1=Ping disabled 0=Ping every 10 seconds 1=Ping every 20 seconds 2=Ping every 30 seconds etc.
+PINGTOTAL='0'
 rm -f $aprdir/ap*signal.*
 mkdir -p $aprdir
 
@@ -89,28 +93,33 @@ do
 
 	STATIONCOUNT=$(($AP1STATIONCOUNT+$AP2STATIONCOUNT+$AP3STATIONCOUNT))
 
-	# Ping Stations To Improve Chance Of Retreiving A Signal.
-	COUNT=$STATIONCOUNT
-	while [ "$COUNT" -gt "0" ]
-	do
-		STATION=`echo $STATIONS | awk -v x=$COUNT '{print $x}'`
-		# First Try Retreiving Ip Address From Dnsmasq Lease File.
-		ip=`cat /var/lib/misc/dnsmasq.leases | grep -m1 "$STATION" | awk '{print $3}'`
-		if [ "$ip" = "" ]; then
-			# Second Try Retreiving Ip Address From Arp Cache.
-			ip=`cat /proc/net/arp | grep -m1 "$STATION" | awk '{print $1}'`
+	#### PING STATIONS TO IMPROVE CHANCE OF RETREIVING A SIGNAL. ####
+	if [ "$PINGLOOP" -ge "$PINGTOTAL" -a "$PINGTOTAL" -ne "-1" ]; then
+		PINGLOOP=0
+		COUNT=$STATIONCOUNT
+		while [ "$COUNT" -gt "0" ]
+		do
+			STATION=`echo $STATIONS | awk -v x=$COUNT '{print $x}'`
+			# First Try Retreiving Ip Address From Dnsmasq Lease File.
+			ip=`cat /var/lib/misc/dnsmasq.leases | grep -m1 "$STATION" | awk '{print $3}'`
 			if [ "$ip" = "" ]; then
-				# Third Ping Every Ip Address On Subnet.
-				fping -b1 -c1 -i1 -q -r0 -t1 -g 192.168.1.0/24 >/dev/null 2>&1
-				COUNT=0
+				# Second Try Retreiving Ip Address From Arp Cache.
+				ip=`cat /proc/net/arp | grep -m1 "$STATION" | awk '{print $1}'`
+				if [ "$ip" = "" ]; then
+					# Third Try Pinging Every Ip Address On Subnet.
+					fping -b1 -c1 -i1 -q -r0 -t1 -g 192.168.1.0/24 >/dev/null 2>&1
+					COUNT=0
+				else
+					ping -i .05 -c 1 -s 0 $ip >/dev/null 2>&1 &
+				fi
 			else
 				ping -i .05 -c 1 -s 0 $ip >/dev/null 2>&1 &
 			fi
-		else
-			ping -i .05 -c 1 -s 0 $ip >/dev/null 2>&1 &
-		fi
-		COUNT=$(($COUNT-1))
-	done
+			COUNT=$(($COUNT-1))
+		done
+	else
+		PINGLOOP=$(($PINGLOOP+1))
+	fi
 
 	#### RETREIVE NETWORK DATA AND DO PREPROCESSING. ####
 
@@ -141,6 +150,10 @@ do
 	do
 		STATION=`echo $STATIONS | awk -v x=$STATIONCOUNT '{print $x}'`
 
+		CONNECTEDTOAP1=`echo $AP1STATIONS | grep -c $STATION`
+		CONNECTEDTOAP2=`echo $AP2STATIONS | grep -c $STATION`
+		CONNECTEDTOAP3=`echo $AP3STATIONS | grep -c $STATION`
+
 		AP1SIGNAL=`grep $STATION $aprdir/ap1_network.dump 2>/dev/null | grep -E -o "\-?[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
 		if [ "$AP1SIGNAL" = "" ]; then
 			AP1SIGNAL='-99'
@@ -152,7 +165,7 @@ do
 		AP3SIGNAL=`grep $STATION $aprdir/ap3_network.dump 2>/dev/null | grep -E -o "\-?[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
 		if [ "$AP3SIGNAL" = "" ]; then
                         AP3SIGNAL='-99'
-                fi
+		fi
 
 		#### LOG. ####
 
@@ -161,9 +174,6 @@ do
 		echo "AP1SIGNAL=$AP1SIGNAL" >> $log
 		echo "AP2SIGNAL=$AP2SIGNAL" >> $log
 		echo "AP3SIGNAL=$AP3SIGNAL" >> $log
-		CONNECTEDTOAP1=`echo $AP1STATIONS | grep -c $STATION`
-		CONNECTEDTOAP2=`echo $AP2STATIONS | grep -c $STATION`
-		CONNECTEDTOAP3=`echo $AP3STATIONS | grep -c $STATION`
 
 		#### PREVENT STATIONS FROM CONSTANTLY HOPPING AROUND DIFFERENT ACCESS POINTS DO TO SIMULAR SIGNAL LEVELS. ####
 
