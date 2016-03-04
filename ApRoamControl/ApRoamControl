@@ -50,10 +50,10 @@ AP2ADDRESS='192.168.1.4'
 AP3ADDRESS='192.168.1.2'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
-PINGLOOP='0'
-# PINGTOTAL sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
-# To set PINGTOTAL: -1=Ping disabled 0=Ping every 10 seconds 1=Ping every 20 seconds 2=Ping every 30 seconds etc.
-PINGTOTAL='0'
+KEEPALIVELOOP='10'
+# KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
+# To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
+KEEPALIVE='10'
 rm -f $aprdir/ap*signal.*
 mkdir -p $aprdir
 
@@ -94,8 +94,8 @@ do
 	STATIONCOUNT=$(($AP1STATIONCOUNT+$AP2STATIONCOUNT+$AP3STATIONCOUNT))
 
 	#### PING STATIONS TO IMPROVE CHANCE OF RETREIVING A SIGNAL. ####
-	if [ "$PINGLOOP" -ge "$PINGTOTAL" -a "$PINGTOTAL" -ne "-1" ]; then
-		PINGLOOP=0
+	if [ "$KEEPALIVELOOP" -ge "$KEEPALIVE" -a "$KEEPALIVE" -ne "0" ]; then
+		KEEPALIVELOOP=10
 		COUNT=$STATIONCOUNT
 		while [ "$COUNT" -gt "0" ]
 		do
@@ -117,8 +117,10 @@ do
 			fi
 			COUNT=$(($COUNT-1))
 		done
+	elif [ "$KEEPALIVE" -eq "0" ]; then
+		KEEPALIVELOOP=10
 	else
-		PINGLOOP=$(($PINGLOOP+1))
+		KEEPALIVELOOP=$(($KEEPALIVELOOP+10))
 	fi
 
 	#### RETREIVE NETWORK DATA AND DO PREPROCESSING. ####
