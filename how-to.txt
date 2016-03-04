@@ -86,6 +86,9 @@ Otherwise by default it will report stations even if they have been disconnected
 
 On the Server ( ApRoamControl machine ):
 
+Dependencies:
+fping
+
 Create the directory /usr/local/bin
 Copy ApRoamControl/ApRoamControl /usr/local/bin/
 # You will probably want to change the log path in the script to something else. (/tmp/ApRoamControl.log /var/log/ApRoamControl.log etc)
@@ -110,4 +113,3 @@ Copy etc/init.d/server/ApRoamSta3 /etc/init.d/
 # If you need more than three access points just copy ApRoamSta1 to ApRoamSta4 etc.. and change any internal references from ApRoamSta1 to ApRoamSta4 etc.
 
 Once you have all the paths, ip addresses and ports set correctly just start up all the init.d scripts /etc/init.d/ApRoamControl start etc. There start order shouldn't matter.
-
