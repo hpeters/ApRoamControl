@@ -1,0 +1,10 @@
+#!/bin/sh
+
+/usr/local/bin/busybox renice -1 $$
+
+while true
+do
+	iw dev wlan0 station dump | nc 192.168.1.1 601 >/dev/null 2>&1
+	sleep 5
+done
+

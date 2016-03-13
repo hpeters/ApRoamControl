@@ -1,0 +1,28 @@
+#!/bin/sh
+
+renice -1 --pid $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+PORT='702'
+
+mkdir -p $aprdir/ap2
+
+while true
+do
+        if [ ! -f "$aprdir/ap2/survey.lock" ]; then
+		nc -l -p $PORT > $aprdir/ap2/survey.dump 2>/dev/null &
+		pid=$!
+		echo $pid > /var/run/ApRoamSur2_nc.pid
+                loop=1
+                while [ "${loop}" -eq "1" ]
+                do
+                        if [ -f "$aprdir/ap2/survey.lock" ]; then
+				kill $pid >/dev/null 2>&1
+				loop=0
+			else
+				sleep .1
+			fi
+		done
+	fi
+	sleep .1
+done

@@ -5,8 +5,8 @@ It was created to overcome Android's severe lack of roaming between access point
 Android hangs onto an access point up to the point of connection failure before switching to a different access point
 even though you might be standing right next to a much stronger one.
 
-ApRoamControl tries to overcome this by monitoring the signal strength that each access point is receiving from the station.
-If it finds that there is an access point with a significantly higher signal it will send the station a deauthication packet over
+ApRoamControl tries to overcome this by monitoring the signal to noise ratio that each access point is receiving from the station.
+If it finds that there is an access point with a significantly higher signal to noise ratio it will send the station a deauthication packet over
 the access point it is currently connect to.
 
 The Android station will then hopefully connect to the stronger accces point.

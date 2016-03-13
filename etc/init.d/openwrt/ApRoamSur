@@ -1,0 +1,24 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=99
+
+APP=ApRoamSur
+PID_FILE=/var/run/ApRoamSur.pid
+
+SERVICE_DAEMONIZE=1
+SERVICE_WRITE_PID=1
+
+boot() {
+	service_start /usr/local/bin/ApRoamSur
+}
+
+
+start() {
+	service_start /usr/local/bin/ApRoamSur
+}
+
+stop() {
+	start-stop-daemon -K -n $APP -p $PID_FILE -s TERM
+	rm -rf $PID_FILE
+}
