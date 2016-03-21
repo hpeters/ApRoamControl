@@ -34,10 +34,17 @@ sig_proc() {
         else
                 SNR2DIFF=0
         fi
-	# Check the snr difference if it was large it might have been a bad signal so don't deauthenticate. Otherwise deauthenticate.
-	if [ "$SNRDIFF" -lt "23" -a "$SNR2DIFF" -lt "23" ]; then
+	# Check the snr difference if it was large it might have been a bad signal so don't deauthenticate and average the current and previous snrs together.
+	# Otherwise deauthenticate.
+	if [ "$SNRDIFF" -lt "$MAXSNRDIFF" -a "$SNR2DIFF" -lt "$MAXSNRDIFF" ]; then
 		DEAUTHSTATION=1
 	else
+		if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
+			SNR=$((($PREVSNR+$SNR)/2))
+		fi
+		if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
+			SNR2=$((($PREVSNR2+$SNR2)/2))
+		fi
 		# The snr difference was large so ignore it and don't deauthenticate.
 		DEAUTHSTATION=0
 	fi
@@ -51,7 +58,7 @@ AP3ADDRESS='192.168.1.6'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
 KEEPALIVELOOP='10'
-MAXSNRDIFF='35'
+MAXSNRDIFF='18'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
 KEEPALIVE='10'
@@ -166,6 +173,8 @@ do
 
 	while [ "${STATIONCOUNT}" -gt "0" ]
 	do
+		APSNRDIFF='0'
+		DEAUTHSTATION='0'
 		SNRDIFF='0'
 		SNR2DIFF='0'
 		STATION=`echo $STATIONS | awk -v x=$STATIONCOUNT '{print $x}'`
@@ -205,11 +214,11 @@ do
 				elif [ "${AP1SNR}" -ge "30" ]; then
 					ADJUST=15
                         	elif [ "${AP1SNR}" -ge "25" ]; then
-                                	ADJUST=10
+                                	ADJUST=12
 				elif [ "${AP1SNR}" -ge "20" ]; then
-					ADJUST=8
-                        	else
-					ADJUST=6
+					ADJUST=12
+                        	elif [ "${AP1SNR}" -gt "0" ]; then
+					ADJUST=10
                         	fi
 			fi
 		fi
@@ -222,11 +231,11 @@ do
 				elif [ "${AP2SNR}" -ge "30" ]; then
 					ADJUST=15
 				elif [ "${AP2SNR}" -ge "25" ]; then
-					ADJUST=10
+					ADJUST=12
 				elif [ "${AP2SNR}" -ge "20" ]; then
-					ADJUST=8
-				else
-					ADJUST=6
+					ADJUST=12
+				elif [ "${AP2SNR}" -gt "0" ]; then
+					ADJUST=10
 				fi
 			fi
 		fi
@@ -239,11 +248,11 @@ do
 				elif [ "${AP3SNR}" -ge "30" ]; then
 					ADJUST=15
 				elif [ "${AP3SNR}" -ge "25" ]; then
-					ADJUST=10
+					ADJUST=12
 				elif [ "${AP3SNR}" -ge "20" ]; then
-					ADJUST=8
-				else
-					ADJUST=6
+					ADJUST=12
+				elif [ "${AP3SNR}" -gt "0" ]; then
+					ADJUST=10
 				fi
 			fi
 		fi
@@ -255,104 +264,137 @@ do
 		echo "AP1 SNR = $AP1SNR dBm" >> $log
 		echo "AP2 SNR = $AP2SNR dBm">> $log
 		echo "AP3 SNR = $AP3SNR dBm" >> $log
-		echo "CONNECTED TO AP1 = $CONNECTEDTOAP1" >> $log
-		echo "CONNECTED TO AP2 = $CONNECTEDTOAP2" >> $log
-		echo "CONNECTED TO AP3 = $CONNECTEDTOAP3" >> $log
+		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
+			echo "CONNECTED TO = AP1" >> $log
+		elif [ "$CONNECTEDTOAP2" -gt "0" ]; then
+			echo "CONNECTED TO = AP2" >> $log
+		elif [ "$CONNECTEDTOAP3" -gt "0" ]; then
+			echo "CONNECTED TO = AP3" >> $log
+		fi
 
 		#### COMPARE SIGNAL LEVELS WITH OTHER ACCESS POINTS AND SEND DEAUTHENTICATION TO STATION IF ANOTHER ACCESS POINT HAS A BETTER SIGNAL. ####
 
 		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
 			if [ "${AP2SNR}" -gt "$(($AP1SNR+$ADJUST))" -a "${AP2SNR}" -ne "0" -a "${AP1SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP2SNR-$AP1SNR))
 				sig_proc "$STATION" ap1 $AP1SNR ap2 $AP2SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP1" >> $log
+					echo "AP1          = DEAUTHENTICATING!" >> $log
 					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-					AP1SNR=$PREVSNR
+				if [ "$AP1SNR" -ne "$SNR" ]; then
+					AP1SNR=$SNR
+					echo "AP1 AVG SNR  = $AP1SNR dBm" >> $log
 				fi
-				if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-					AP2SNR=$PREV2SNR
+				if [ "$AP2SNR" -ne "$SNR2" ]; then
+					AP2SNR=$SNR2
+					echo "AP2 AVG SNR  = $AP2SNR dBm" >> $log
 				fi
 			elif [ "${AP3SNR}" -gt "$(($AP1SNR+$ADJUST))" -a "${AP3SNR}" -ne "0" -a "${AP1SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP3SNR-$AP1SNR))
 				sig_proc "$STATION" ap1 $AP1SNR ap3 $AP3SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP1" >> $log
+					echo "AP1          = DEAUTHENTICATING!" >> $log
 					echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP1SNR=$PREVSNR
-				fi
-                                if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP3SNR=$PREV2SNR
+                                if [ "$AP1SNR" -ne "$SNR" ]; then
+                                        AP1SNR=$SNR
+                                        echo "AP1 AVG SNR  = $AP1SNR dBm" >> $log
+                                fi
+                                if [ "$AP3SNR" -ne "$SNR2" ]; then
+                                        AP3SNR=$SNR2
+                                        echo "AP3 AVG SNR  = $AP3SNR dBm" >> $log
                                 fi
 			fi
 		fi
 		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
                         if [ "${AP1SNR}" -gt "$(($AP2SNR+$ADJUST))" -a "${AP1SNR}" -ne "0" -a "${AP2SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP1SNR-$AP2SNR))
 				sig_proc "$STATION" ap2 $AP2SNR ap1 $AP1SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP2" >> $log
-					echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
+                                	echo "AP2          = DEAUTHENTICATING!" >> $log
+                                	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP2SNR=$PREVSNR
-				fi
-                                if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP1SNR=$PREV2SNR
+                                if [ "$AP2SNR" -ne "$SNR" ]; then
+                                        AP2SNR=$SNR
+                                        echo "AP2 AVG SNR  = $AP2SNR dBm" >> $log
+                                fi
+                                if [ "$AP1SNR" -ne "$SNR2" ]; then
+                                        AP1SNR=$SNR2
+                                        echo "AP1 AVG SNR  = $AP1SNR dBm" >> $log
                                 fi
                         elif [ "${AP3SNR}" -gt "$(($AP2SNR+$ADJUST))" -a "${AP3SNR}" -ne "0" -a "${AP2SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP3SNR-$AP2SNR))
 				sig_proc "$STATION" ap2 $AP2SNR ap3 $AP3SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP2" >> $log
-					echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
+                                	echo "AP2          = DEAUTHENTICATING!" >> $log
+                                	echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP2SNR=$PREVSNR
-				fi
-                                if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP3SNR=$PREV2SNR
+                                if [ "$AP2SNR" -ne "$SNR" ]; then
+                                        AP2SNR=$SNR
+                                        echo "AP AVG SNR  = $AP2SNR dBm " >> $log
+                                fi
+                                if [ "$AP3SNR" -ne "$SNR2" ]; then
+                                        AP3SNR=$SNR2
+                                        echo "AP3 AVG SNR  = $AP3SNR dBm" >> $log
                                 fi
                         fi
                 fi
 		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
                         if [ "${AP1SNR}" -gt "$(($AP3SNR+$ADJUST))" -a "${AP1SNR}" -ne "0" -a "${AP3SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP1SNR-$AP3SNR))
 				sig_proc "$STATION" ap3 $AP3SNR ap1 $AP1SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP3" >> $log
+					echo "AP3          = DEAUTHENTICATING!" >> $log
 					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP3SNR=$PREVSNR
-				fi
-                                if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP1SNR=$PREV2SNR
+                                if [ "$AP3SNR" -ne "$SNR" ]; then
+                                        AP3SNR=$SNR
+                                        echo "AP3 AVG SNR  = $AP3SNR dBm" >> $log
+                                fi
+                                if [ "$AP1SNR" -ne "$SNR2" ]; then
+                                        AP1SNR=$SNR2
+                                        echo "AP1 AVG SNR  = $AP1SNR dBm" >> $log
                                 fi
                         elif [ "${AP2SNR}" -gt "$(($AP3SNR+$ADJUST))" -a "${AP2SNR}" -ne "0" -a "${AP3SNR}" -ne "0" ]; then
+				APSNRDIFF=$(($AP2SNR-$AP3SNR))
 				sig_proc "$STATION" ap3 $AP3SNR ap2 $AP2SNR
 				if [ "$DEAUTHSTATION" -eq "1" ]; then
-					echo "Deauthenticating from = AP3" >> $log
+					echo "AP3          = DEAUTHENTICATING!" >> $log
 					echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
 				fi
-				# Ignore Very Large SNR Difference's They Are Probably Bad Readings.
-				if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP3SNR=$PREVSNR
-				fi
-                                if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-                                        AP2SNR=$PREV2SNR
+                                if [ "$AP3SNR" -ne "$SNR" ]; then
+                                        AP3SNR=$SNR
+                                        echo "AP3 AVG SNR  = $AP3SNR dBm" >> $log
+                                fi
+                                if [ "$AP2SNR" -ne "$SNR2" ]; then
+                                        AP2SNR=$SNR2
+                                        echo "AP2 AVG SNR  = $AP2SNR dBm" >> $log
                                 fi
                         fi
 		fi
 
 		#### LOG. ####
-		echo "SNR THRESHOLD           = $ADJUST dBm" >> $log
+
+		if [ "$APSNRDIFF" -gt "0" ]; then
+			echo "ACCESS POINT SNR DIFF         = $APSNRDIFF dBm" >> $log
+		fi
+		if [ "$ADJUST" -gt "0" ]; then
+			echo "SNR THRESHOLD                 = $ADJUST dBm" >> $log
+		fi
+		if [ "$SNRDIFF" -gt "0" ]; then
+				echo "AP CUR to PREV SNR DIFF       = $SNRDIFF dBm" >> $log
+		fi
+		if [ "$SNR2DIFF" -gt "0" ]; then
+				echo "NEW AP CUR to PREV SNR DIFF   = $SNR2DIFF dBm" >> $log
+		fi
+		if [ "$SNRDIFF" -ge "$MAXSNRDIFF" -o "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
+			echo "MAXIMUM SNR DIFF              = EXCEEDED! NOT DEAUTHENTICATING!" >> $log
+		fi
+
 
 		#### SAVE CURRENT STATION SNR FOR ALL ACCESS POINTS.
+
 		echo $AP1SNR > $aprdir/ap1snr.$STATION
 		echo $AP2SNR > $aprdir/ap2snr.$STATION
 		echo $AP3SNR > $aprdir/ap3snr.$STATION
