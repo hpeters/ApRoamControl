@@ -402,9 +402,15 @@ do
 
 		#### SAVE CURRENT STATION SNR FOR ALL ACCESS POINTS.
 
-		echo $AP1SNR > $aprdir/ap1snr.$STATION
-		echo $AP2SNR > $aprdir/ap2snr.$STATION
-		echo $AP3SNR > $aprdir/ap3snr.$STATION
+		if [ "$AP1SNR" -ne "0" ]; then
+			echo $AP1SNR > $aprdir/ap1snr.$STATION
+		fi
+		if [ "$AP2SNR" -ne "0" ]; then
+			echo $AP2SNR > $aprdir/ap2snr.$STATION
+		fi
+		if [ "$AP3SNR" -ne "0" ]; then
+			echo $AP3SNR > $aprdir/ap3snr.$STATION
+		fi
 
 		STATIONCOUNT=$(($STATIONCOUNT-1))
 	done
