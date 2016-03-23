@@ -29,8 +29,10 @@ Copy etc/init.d/openwrt/ApRoamDeauth /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamSta /etc/init.d/
 Copy etc/init.d/openwrt/ApRoamSur /etc/init.d/
 
+Adjust the ports and addresses in ApRoamSta and ApRoamSur for each access point if necessary.
+
 You will need to modify the /lib/netifd/hostapd.sh file.
-Firt back it up cp /lib/netifd/hostapd.sh /lib/netifd/hostapd.sh.orig
+First back it up cp /lib/netifd/hostapd.sh /lib/netifd/hostapd.sh.orig
 The add this below line number 73.
 # Extra options.
 append base_cfg "ap_max_inactivity=5" "$N"

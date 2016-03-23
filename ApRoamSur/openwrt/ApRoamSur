@@ -2,9 +2,16 @@
 
 /usr/local/bin/busybox renice -1 $$
 
+aprdir='/tmp/ApRoam'
+PORT='701'
+TRIGGERPORT='777'
+
 while true
 do
-	iw dev wlan0 survey dump | nc 192.168.1.1 701 >/dev/null 2>&1
-	sleep 5
+	# Launch Trigger Server.
+	/usr/local/bin/busybox nc -l -p $TRIGGERPORT > $aprdir/sur 2>/dev/null
+	# Send Survey Data To ApRoamControl Machine.
+	iw dev wlan0 survey dump | nc 192.168.1.1 $PORT >/dev/null 2>&1
+	sleep 1
 done
 

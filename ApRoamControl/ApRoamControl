@@ -58,7 +58,7 @@ AP3ADDRESS='192.168.1.6'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
 KEEPALIVELOOP='10'
-MAXSNRDIFF='18'
+MAXSNRDIFF='15'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
 KEEPALIVE='10'
@@ -82,10 +82,11 @@ do
 	# Retreive Access Point 1 Survey Dump.
 	AP1NOISE=`grep -A1 'in use' $aprdir/ap1/survey.dump | grep noise: | awk '{print $2}'`
 	rm -f $aprdir/ap1/survey.lock >/dev/null 2>&1
+	rm -f $aprdir/ap1/survey.dump >/dev/null 2>&1
 	# Retreive Access Point 1 Station Dump.
 	AP1STATIONS=`grep "Station" $aprdir/ap1/station.dump 2>/dev/null | awk '{print $2}'`
-	AP1STATIONCOUNT=`grep -c "Station" $aprdir/ap1/station.dump 2>/dev/null`
         rm -f $aprdir/ap1/station.lock >/dev/null 2>&1
+	rm -f $aprdir/ap1/station.dump >/dev/null 2>&1
 
 	## AP2 ##
         touch $aprdir/ap2/survey.lock >/dev/null 2>&1
@@ -94,10 +95,11 @@ do
 	# Retreive Access Point 2 Survey Dump.
 	AP2NOISE=`grep -A1 'in use' $aprdir/ap2/survey.dump | grep noise: | awk '{print $2}'`
 	rm -f $aprdir/ap2/survey.lock >/dev/null 2>&1
+	rm -f $aprdir/ap2/survey.dump >/dev/null 2>&1
 	# Retreive Access Point 2 Station Dump.
         AP2STATIONS=`grep "Station" $aprdir/ap2/station.dump 2>/dev/null | awk '{print $2}'`
-        AP2STATIONCOUNT=`grep -c "Station" $aprdir/ap2/station.dump 2>/dev/null`
         rm -f $aprdir/ap2/station.lock >/dev/null 2>&1
+	rm -f $aprdir/ap2/station.dump >/dev/null 2>&1
 
 	## AP3 ##
 	touch $aprdir/ap3/survey.lock >/dev/null 2>&1
@@ -106,15 +108,20 @@ do
 	# Retreive Access Point 3 Survey Dump.
 	AP3NOISE=`grep -A1 'in use' $aprdir/ap3/survey.dump | grep noise: | awk '{print $2}'`
 	rm -f $aprdir/ap3/survey.lock >/dev/null 2>&1
+	rm -f $aprdir/ap3/survey.dump >/dev/null 2>&1
 	# Retreive Access Point 3 Station Dump.
         AP3STATIONS=`grep "Station" $aprdir/ap3/station.dump 2>/dev/null | awk '{print $2}'`
-        AP3STATIONCOUNT=`grep -c "Station" $aprdir/ap3/station.dump 2>/dev/null`
         rm -f $aprdir/ap3/station.lock >/dev/null 2>&1
+	rm -f $aprdir/ap3/station.dump >/dev/null 2>&1
 
 	# Combine All Access Point Clients.
 	STATIONS="$AP1STATIONS $AP2STATIONS $AP3STATIONS"
 
-	STATIONCOUNT=$(($AP1STATIONCOUNT+$AP2STATIONCOUNT+$AP3STATIONCOUNT))
+	# Strip Out Duplicates.
+	STATIONS=`echo "$STATIONS" | grep -Eo ..\(\:..\){5} | awk '!a[$0]++'`
+
+	# Get Station Count.
+	STATIONCOUNT=`echo "$STATIONS" | grep -Eoc ..\(\:..\){5}`
 
 	#### PING STATIONS TO IMPROVE CHANCE OF RETREIVING A SIGNAL. ####
 	if [ "$KEEPALIVELOOP" -ge "$KEEPALIVE" -a "$KEEPALIVE" -ne "0" ]; then

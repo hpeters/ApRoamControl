@@ -3,6 +3,8 @@
 renice -1 --pid $$ >/dev/null 2>&1
 
 aprdir='/tmp/ApRoam'
+ADDRESS='192.168.1.2'
+STAPORT='666'
 PORT='601'
 
 mkdir -p $aprdir/ap1
@@ -10,15 +12,21 @@ mkdir -p $aprdir/ap1
 while true
 do
         if [ ! -f "$aprdir/ap1/station.lock" ]; then
+		# Launch Server To Receive Station Data.
 		nc -l -p $PORT > $aprdir/ap1/station.dump 2>/dev/null &
 		pid=$!
 		echo $pid > /var/run/ApRoamSta1_nc.pid
+		# Trigger Access Point To Send Station Data.
+		nc -q0 $ADDRESS $STAPORT 2>/dev/null
                 loop=1
                 while [ "${loop}" -eq "1" ]
                 do
+			# Check For Station Lock Kill Server If Running.
                         if [ -f "$aprdir/ap1/station.lock" ]; then
 				kill $pid >/dev/null 2>&1
 				loop=0
+				# Delay Retreiving Station Data.
+				sleep 8
 			else
 				sleep .1
 			fi
