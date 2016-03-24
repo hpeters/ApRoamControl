@@ -58,6 +58,7 @@ AP3ADDRESS='192.168.1.6'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
 KEEPALIVELOOP='10'
+MAXNOISE='-80'
 MAXSNRDIFF='15'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
@@ -73,43 +74,88 @@ do
 	DATE=`date`
 	echo "-------------------- $DATE --------------------" >> $log
 
-	#### RETREIVE STATION DATA. ####
+	#### RETREIVE STATION AND SURVEY DATA. ####
 
-	## AP1 ##
+	### AP1 ###
 	touch $aprdir/ap1/survey.lock >/dev/null 2>&1
 	touch $aprdir/ap1/station.lock >/dev/null 2>&1
 	sleep .15
-	# Retreive Access Point 1 Survey Dump.
-	AP1NOISE=`grep -A1 'in use' $aprdir/ap1/survey.dump | grep noise: | awk '{print $2}'`
+	## Retreive Access Point 1 Survey Dump. ##
+	AP1NOISE=`grep -A1 'in use' $aprdir/ap1/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
+	if [ "$AP1NOISE" = "" ]; then
+		AP1NOISE='0'
+	fi
+	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
+	if [ "$AP1NOISE" -gt "$MAXNOISE" ]; then
+		if [ -f $aprdir/ap1prevnoise ]; then
+			AP1PREVNOISE=`cat $aprdir/ap1prevnoise`
+			AP1NOISE=$((($AP1NOISE+$AP1PREVNOISE)/2))
+		else
+			# Previous Noise Doesnt Exist So Use Max Noise.
+			AP1NOISE=$MAXNOISE
+		fi
+	else
+		echo $AP1NOISE > $aprdir/ap1prevnoise
+	fi
 	rm -f $aprdir/ap1/survey.lock >/dev/null 2>&1
 	rm -f $aprdir/ap1/survey.dump >/dev/null 2>&1
-	# Retreive Access Point 1 Station Dump.
+	## Retreive Access Point 1 Station Dump. ##
 	AP1STATIONS=`grep "Station" $aprdir/ap1/station.dump 2>/dev/null | awk '{print $2}'`
         rm -f $aprdir/ap1/station.lock >/dev/null 2>&1
 	rm -f $aprdir/ap1/station.dump >/dev/null 2>&1
 
-	## AP2 ##
+	### AP2 ###
         touch $aprdir/ap2/survey.lock >/dev/null 2>&1
 	touch $aprdir/ap2/station.lock >/dev/null 2>&1
 	sleep .15
-	# Retreive Access Point 2 Survey Dump.
-	AP2NOISE=`grep -A1 'in use' $aprdir/ap2/survey.dump | grep noise: | awk '{print $2}'`
+	## Retreive Access Point 2 Survey Dump. ##
+	AP2NOISE=`grep -A1 'in use' $aprdir/ap2/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
+	if [ "$AP2NOISE" = "" ]; then
+		AP2NOISE='0'
+	fi
+	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
+	if [ "$AP2NOISE" -gt "$MAXNOISE" ]; then
+		if [ -f $aprdir/ap2prevnoise ]; then
+			AP2PREVNOISE=`cat $aprdir/ap2prevnoise`
+			AP2NOISE=$((($AP2NOISE+$AP2PREVNOISE)/2))
+		else
+			# Previous Noise Doesnt Exist So Use Max Noise.
+			AP2NOISE=$MAXNOISE
+		fi
+	else
+		echo $AP2NOISE > $aprdir/ap2prevnoise
+	fi
 	rm -f $aprdir/ap2/survey.lock >/dev/null 2>&1
 	rm -f $aprdir/ap2/survey.dump >/dev/null 2>&1
-	# Retreive Access Point 2 Station Dump.
+	## Retreive Access Point 2 Station Dump. ##
         AP2STATIONS=`grep "Station" $aprdir/ap2/station.dump 2>/dev/null | awk '{print $2}'`
         rm -f $aprdir/ap2/station.lock >/dev/null 2>&1
 	rm -f $aprdir/ap2/station.dump >/dev/null 2>&1
 
-	## AP3 ##
+	### AP3 ###
 	touch $aprdir/ap3/survey.lock >/dev/null 2>&1
 	touch $aprdir/ap3/station.lock >/dev/null 2>&1
 	sleep .15
-	# Retreive Access Point 3 Survey Dump.
-	AP3NOISE=`grep -A1 'in use' $aprdir/ap3/survey.dump | grep noise: | awk '{print $2}'`
+	## Retreive Access Point 3 Survey Dump. ##
+	AP3NOISE=`grep -A1 'in use' $aprdir/ap3/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
+	if [ "$AP3NOISE" = "" ]; then
+		AP3NOISE='0'
+	fi
+	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
+	if [ "$AP3NOISE" -gt "$MAXNOISE" ]; then
+		if [ -f $aprdir/ap3prevnoise ]; then
+			AP3PREVNOISE=`cat $aprdir/ap3prevnoise`
+			AP3NOISE=$((($AP3NOISE+$AP3PREVNOISE)/2))
+		else
+			# Previous Noise Doesnt Exist So Use Max Noise.
+			AP3NOISE=$MAXNOISE
+		fi
+	else
+		echo $AP3NOISE > $aprdir/ap3prevnoise
+	fi
 	rm -f $aprdir/ap3/survey.lock >/dev/null 2>&1
 	rm -f $aprdir/ap3/survey.dump >/dev/null 2>&1
-	# Retreive Access Point 3 Station Dump.
+	## Retreive Access Point 3 Station Dump. ##
         AP3STATIONS=`grep "Station" $aprdir/ap3/station.dump 2>/dev/null | awk '{print $2}'`
         rm -f $aprdir/ap3/station.lock >/dev/null 2>&1
 	rm -f $aprdir/ap3/station.dump >/dev/null 2>&1
