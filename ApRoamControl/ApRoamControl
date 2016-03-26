@@ -57,8 +57,8 @@ AP2ADDRESS='192.168.1.4'
 AP3ADDRESS='192.168.1.6'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
+DEFAULTNOISE='92'
 KEEPALIVELOOP='10'
-MAXNOISE='-80'
 MAXSNRDIFF='15'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
@@ -83,16 +83,10 @@ do
 	## Retreive Access Point 1 Survey Dump. ##
 	AP1NOISE=`grep -A1 'in use' $aprdir/ap1/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
 	if [ "$AP1NOISE" = "" ]; then
-		AP1NOISE='0'
-	fi
-	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
-	if [ "$AP1NOISE" -gt "$MAXNOISE" ]; then
 		if [ -f $aprdir/ap1prevnoise ]; then
-			AP1PREVNOISE=`cat $aprdir/ap1prevnoise`
-			AP1NOISE=$((($AP1NOISE+$AP1PREVNOISE)/2))
+			AP1NOISE=`cat $aprdir/ap1prevnoise`
 		else
-			# Previous Noise Doesnt Exist So Use Max Noise.
-			AP1NOISE=$MAXNOISE
+			AP1NOISE=$DEFAULTNOISE
 		fi
 	else
 		echo $AP1NOISE > $aprdir/ap1prevnoise
@@ -111,16 +105,10 @@ do
 	## Retreive Access Point 2 Survey Dump. ##
 	AP2NOISE=`grep -A1 'in use' $aprdir/ap2/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
 	if [ "$AP2NOISE" = "" ]; then
-		AP2NOISE='0'
-	fi
-	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
-	if [ "$AP2NOISE" -gt "$MAXNOISE" ]; then
 		if [ -f $aprdir/ap2prevnoise ]; then
-			AP2PREVNOISE=`cat $aprdir/ap2prevnoise`
-			AP2NOISE=$((($AP2NOISE+$AP2PREVNOISE)/2))
+			AP2NOISE=`cat $aprdir/ap2prevnoise`
 		else
-			# Previous Noise Doesnt Exist So Use Max Noise.
-			AP2NOISE=$MAXNOISE
+			AP2NOISE=$DEFAULTNOISE
 		fi
 	else
 		echo $AP2NOISE > $aprdir/ap2prevnoise
@@ -139,16 +127,10 @@ do
 	## Retreive Access Point 3 Survey Dump. ##
 	AP3NOISE=`grep -A1 'in use' $aprdir/ap3/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
 	if [ "$AP3NOISE" = "" ]; then
-		AP3NOISE='0'
-	fi
-	# If Noise Is Above Max Moise Then Set Noise To An Average Of Noise And Previous Noise.
-	if [ "$AP3NOISE" -gt "$MAXNOISE" ]; then
 		if [ -f $aprdir/ap3prevnoise ]; then
-			AP3PREVNOISE=`cat $aprdir/ap3prevnoise`
-			AP3NOISE=$((($AP3NOISE+$AP3PREVNOISE)/2))
+			AP3NOISE=`cat $aprdir/ap3prevnoise`
 		else
-			# Previous Noise Doesnt Exist So Use Max Noise.
-			AP3NOISE=$MAXNOISE
+			AP3NOISE=$DEFAULTNOISE
 		fi
 	else
 		echo $AP3NOISE > $aprdir/ap3prevnoise
