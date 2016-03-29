@@ -1,6 +1,5 @@
 First your Openwrt access points will need to have the following installed.
 
-ebtables
 hostapd-utils
 nc  a recompiled version of busybox with nc server support (or the full version of busybox?) or netcat
 renice  either a recompiled version of busybox with renice support (or the full version of busybox?)
@@ -14,7 +13,6 @@ You should alsow change any ip addresses to what you are using.
 On the Openwrt access points:
 
 Create the directory /usr/local/bin
-Copy ApRoamBlock/ApRoamBlock to /usr/local/bin/
 Copy ApRoamChkMon/ApRoamChkMon to /usr/local/bin/
 Copy ApRoamClient/ApRoamClient to /usr/local/bin/
 Copy ApRoamDeauth/ApRoamDeauth to /usr/local/bin/

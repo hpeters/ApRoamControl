@@ -3,6 +3,7 @@
 /usr/local/bin/busybox renice -1 $$ >/dev/null 2>&1
 
 aprdir='/tmp/ApRoam'
+INTERFACE='wlan0'
 PORT='555'
 
 mkdir -p $aprdir
@@ -17,7 +18,7 @@ do
 	running=`ps | awk '{print $1}' | grep -c $pid`
 	if [ "$deauthsize" -gt "0" ]; then
 		station=`cat $aprdir/deauth`
-		/usr/local/bin/ApRoamBlock $station &
+		hostapd_cli -i $INTERFACE deauthenticate $station
 		kill $pid >/dev/null 2>&1
 		/usr/local/bin/busybox nc -l -p $PORT > $aprdir/deauth 2>/dev/null &
 		pid=$!

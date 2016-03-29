@@ -1,4 +1,4 @@
-ApRoamControl is an access point station roaming control application written as a shell script.
+ApRoamControl is a wifi access point station roaming control application written as a shell script.
 
 It was created to overcome Android's severe lack of roaming between access points.
 
@@ -22,7 +22,7 @@ The hardware used was a tplink 841nd, tplink wdr3500, buffalo wzr-hp-ag300h and 
 So as you can see none of them are exactly power houses.
 
 The client part of ApRoamControl runs on access points running Openwrt with Atheros chipsets. It will probably work on others as well as
-long as the wifi supports monitor mode.
+long as the wifi driver supports running monitor and access point mode at the same time.
 The Server part of ApRoamControl was tested on a Debian based intel dual core atom processor machine.
 I'm sure it could be modified to run on ther distros easly maybe even openwrt.
 
