@@ -188,21 +188,21 @@ do
 	touch $aprdir/ap1/network.lock >/dev/null 2>&1
 	sleep .15
 	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap1/ap1_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap1_network.dump
+	tcpdump -e -t -r $aprdir/ap1/ap1_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap1_network.dump
 	rm -f $aprdir/ap1/network.lock >/dev/null 2>&1
 
         # Retreive Access Point 2 Network Data Dump.
 	touch $aprdir/ap2/network.lock >/dev/null 2>&1
 	sleep .15
 	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap2/ap2_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap2_network.dump
+	tcpdump -e -t -r $aprdir/ap2/ap2_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap2_network.dump
 	rm -f $aprdir/ap2/network.lock >/dev/null 2>&1
 
 	# Retreive Access Point 3 Network Data Dump.
 	touch $aprdir/ap3/network.lock >/dev/null 2>&1
 	sleep .15
 	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap3/ap3_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap3_network.dump
+	tcpdump -e -t -r $aprdir/ap3/ap3_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap3_network.dump
 	rm -f $aprdir/ap3/network.lock >/dev/null 2>&1
 
 	#### RETREIVE STATION SIGNAL VALUES. ####
