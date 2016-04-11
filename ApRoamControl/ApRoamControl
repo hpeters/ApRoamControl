@@ -57,7 +57,7 @@ AP2ADDRESS='192.168.1.4'
 AP3ADDRESS='192.168.1.6'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
-DEFAULTNOISE='92'
+DEFAULTNOISE='-92'
 KEEPALIVELOOP='10'
 MAXSNRDIFF='15'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
