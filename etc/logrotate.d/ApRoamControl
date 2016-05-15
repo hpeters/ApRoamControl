@@ -1,4 +1,4 @@
-/var/zram/ApRoamControl.log {
+/var/log/ApRoam/control.log /var/log/ApRoam/deauth.log {
 	daily
         rotate 7
 	size 1024k

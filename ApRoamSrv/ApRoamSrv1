@@ -14,7 +14,7 @@ do
 		pid=$!
 		echo $pid > /var/run/ApRoamSrv1_nc.pid
                 loop=1
-                while [ "${loop}" -eq "1" ]
+                while [ "$loop" -eq "1" ]
                 do
 			dumpsize=`stat --printf="%s" $aprdir/ap1/ap1_network.dump`
                         if [ -f "$aprdir/ap1/network.lock" -o "$dumpsize" -gt "25600000" ]; then
