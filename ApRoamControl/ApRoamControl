@@ -37,7 +37,7 @@ sig_proc() {
                 SNR2DIFF=0
         fi
 	# Calculate whether to deauthenticate or not.
-	if [ "$(($SNRDIFF-$(($SNR2DIFF/3))))" -gt "0" -a "$(($SNR2DIFF-$(($SNRDIFF/3))))" -gt "0" ]; then
+	if [ "$(($SNRDIFF-$(($SNR2DIFF/3))))" -ge "0" -a "$(($SNR2DIFF-$(($SNRDIFF/3))))" -ge "0" ]; then
 		if [ "$SNRDIFF" -le "$MAXSNRDROP" ]; then
 			DEAUTHSTATION=1
 		else

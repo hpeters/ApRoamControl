@@ -1,4 +1,4 @@
-ApRoamControl is a wifi access point station roaming control application written as a shell script.
+ApRoamControl is a wifi router access point station (client) roaming control application written as a bash shell script.
 
 It was created to overcome Android's severe lack of roaming between access points.
 
@@ -7,7 +7,7 @@ even though you might be standing right next to a much stronger one.
 
 ApRoamControl tries to overcome this by monitoring the signal to noise ratio that each access point is receiving from the station.
 If it finds that there is an access point with a significantly higher signal to noise ratio it will send the station a deauthication packet over
-the access point it is currently connect to.
+the access point it is currently connected to.
 
 The Android station will then hopefully connect to the stronger accces point.
 It is entirely up to the Android station what access point it connects to so it might not always connect to the strongest one.
