@@ -7,13 +7,13 @@ ADDRESS='192.168.1.4'
 SURPORT='777'
 PORT='702'
 
-mkdir -p $aprdir/ap2
+mkdir -p $aprdir/AP2
 
 while true
 do
-        if [ ! -f "$aprdir/ap2/survey.lock" ]; then
+        if [ ! -f "$aprdir/AP2/survey.lock" ]; then
 		# Launch Server To Receive Survey Data.
-		nc -l -p $PORT > $aprdir/ap2/survey.dump 2>/dev/null &
+		nc -l -p $PORT > $aprdir/AP2/survey.dump 2>/dev/null &
 		pid=$!
 		echo $pid > /var/run/ApRoamSur2_nc.pid
 		# Trigger Access Point To Send Survey Data.
@@ -22,7 +22,7 @@ do
                 while [ "${loop}" -eq "1" ]
                 do
 			# Check For Station Lock Kill Server If Running.
-                        if [ -f "$aprdir/ap2/survey.lock" ]; then
+                        if [ -f "$aprdir/AP2/survey.lock" ]; then
 				kill $pid >/dev/null 2>&1
 				loop=0
 				# Delay Retreiving Survey Data.

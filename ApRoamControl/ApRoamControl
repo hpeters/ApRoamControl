@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 renice -1 $$ >/dev/null 2>&1
 
@@ -7,7 +7,7 @@ renice -1 $$ >/dev/null 2>&1
 aprdir='/tmp/ApRoam'
 controllog='control.log'
 deauthlog='deauth.log'
-logdir='/var/log/ApRoam'
+logdir='/var/zram/ApRoam'
 
 #### SIGNAL PROCESSING FUNCTION ####
 
@@ -36,38 +36,42 @@ sig_proc() {
         else
                 SNR2DIFF=0
         fi
-	# Check the snr difference if it was large it might have been a bad signal so don't deauthenticate and reduce the current snr by five.
-	# Otherwise deauthenticate.
-	if [ "$SNRDIFF" -lt "$MAXSNRDIFF" -a "$SNR2DIFF" -lt "$MAXSNRDIFF" ]; then
+	# Calculate whether to deauthenticate or not.
+	if [ "$(($SNRDIFF-$(($SNR2DIFF/3))))" -gt "0" -a "$(($SNR2DIFF-$(($SNRDIFF/3))))" -gt "0" ]; then
+		if [ "$SNRDIFF" -le "$MAXSNRDROP" ]; then
+			DEAUTHSTATION=1
+		else
+			DEAUTHSTATION=0
+		fi
+	elif [ "$SNRDIFF" -le "$SNRDROP" -a "$SNR2DIFF" -le "$MAXSNRDIFF" ]; then
 		DEAUTHSTATION=1
 	else
-		if [ "$SNRDIFF" -ge "$MAXSNRDIFF" ]; then
-			SNR=$((${SNR}+5))
-		fi
-		if [ "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-			SNR2=$((${SNR2}-5))
-		fi
-		# The snr difference was large so ignore it and don't deauthenticate.
 		DEAUTHSTATION=0
 	fi
 }
 
-#### INTIALIZE VARIABLES AND CLEAN UP. ####
-
-AP1ADDRESS='192.168.1.2'
-AP2ADDRESS='192.168.1.4'
-AP3ADDRESS='192.168.1.8'
+#### INTIALIZE ARRAYS, VARIABLES AND CLEAN UP. ####
+declare -a APADDRESS
+declare -a APNOISE
+declare -a APSNR
+declare -a APSTATIONS
+APCOUNT='3'
+APADDRESS[1]='192.168.1.2'
+APADDRESS[2]='192.168.1.4'
+APADDRESS[3]='192.168.1.8'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
 DEFAULTNOISE='-88'
 KEEPALIVELOOP='10'
-MAXSNR='70'
+MAXSNR='80'
 MAXSNRDIFF='20'
+MAXSNRDROP='25'
+SNRDROP='12'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
 KEEPALIVE='10'
-rm -f $aprdir/ap*snr.*
-rm -f $aprdir/ap*prevnoise
+rm -f $aprdir/AP*snr.*
+rm -f $aprdir/AP*prevnoise
 rm -f $aprdir/deauth
 mkdir -p $aprdir
 mkdir -p $logdir
@@ -79,78 +83,42 @@ while true
 do
 	STARTTIME=`date +%s`
 	DATE=`date`
-	echo "-------------------- $DATE --------------------" >> $logdir/$controllog
+	printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
 
-	#### RETREIVE STATION AND SURVEY DATA. ####
+	#### RETRIEVE STATION AND SURVEY DATA. ####
 
-	### AP1 ###
-	touch $aprdir/ap1/survey.lock >/dev/null 2>&1
-	touch $aprdir/ap1/station.lock >/dev/null 2>&1
-	sleep .15
-	## Retreive Access Point 1 Survey Dump. ##
-	AP1NOISE=`grep -A1 'in use' $aprdir/ap1/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
-	if [ "$AP1NOISE" = "" ]; then
-		if [ -f $aprdir/ap1prevnoise ]; then
-			AP1NOISE=`cat $aprdir/ap1prevnoise`
+	COUNT='1'
+	STATIONS=''
+	while [ "${COUNT}" -le "$APCOUNT" ]
+	do
+		touch $aprdir/AP${COUNT}/survey.lock >/dev/null 2>&1
+		touch $aprdir/AP${COUNT}/station.lock >/dev/null 2>&1
+		sleep .15
+		## Retrieve Survey Dump. ##
+		APNOISE[${COUNT}]=`grep -A1 'in use' $aprdir/AP${COUNT}/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
+		if [ "${APNOISE[${COUNT}]}" = "" ]; then
+			if [ -f $aprdir/AP${COUNT}prevnoise ]; then
+				APNOISE[${COUNT}]=`cat $aprdir/AP${COUNT}prevnoise`
+			else
+				APNOISE[${COUNT}]=$DEFAULTNOISE
+			fi
 		else
-			AP1NOISE=$DEFAULTNOISE
+			echo ${APNOISE[${COUNT}]} > $aprdir/AP${COUNT}prevnoise
 		fi
-	else
-		echo $AP1NOISE > $aprdir/ap1prevnoise
-	fi
-	rm -f $aprdir/ap1/survey.lock >/dev/null 2>&1
-	rm -f $aprdir/ap1/survey.dump >/dev/null 2>&1
-	## Retreive Access Point 1 Station Dump. ##
-	AP1STATIONS=`grep "Station" $aprdir/ap1/station.dump 2>/dev/null | awk '{print $2}'`
-        rm -f $aprdir/ap1/station.lock >/dev/null 2>&1
-	rm -f $aprdir/ap1/station.dump >/dev/null 2>&1
-
-	### AP2 ###
-        touch $aprdir/ap2/survey.lock >/dev/null 2>&1
-	touch $aprdir/ap2/station.lock >/dev/null 2>&1
-	sleep .15
-	## Retreive Access Point 2 Survey Dump. ##
-	AP2NOISE=`grep -A1 'in use' $aprdir/ap2/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
-	if [ "$AP2NOISE" = "" ]; then
-		if [ -f $aprdir/ap2prevnoise ]; then
-			AP2NOISE=`cat $aprdir/ap2prevnoise`
+		rm -f $aprdir/AP${COUNT}/survey.lock >/dev/null 2>&1
+		rm -f $aprdir/AP${COUNT}/survey.dump >/dev/null 2>&1
+		## Retrieve Access Station Dump. ##
+		APSTATIONS[${COUNT}]=`grep "Station" $aprdir/AP${COUNT}/station.dump 2>/dev/null | awk '{print $2}'`
+        	rm -f $aprdir/AP${COUNT}/station.lock >/dev/null 2>&1
+		rm -f $aprdir/AP${COUNT}/station.dump >/dev/null 2>&1
+		# Combine All Stations.
+		if [ "$STATIONS" != "" ]; then
+			STATIONS="${STATIONS} ${APSTATIONS[${COUNT}]}"
 		else
-			AP2NOISE=$DEFAULTNOISE
+			STATIONS="${APSTATIONS[${COUNT}]}"
 		fi
-	else
-		echo $AP2NOISE > $aprdir/ap2prevnoise
-	fi
-	rm -f $aprdir/ap2/survey.lock >/dev/null 2>&1
-	rm -f $aprdir/ap2/survey.dump >/dev/null 2>&1
-	## Retreive Access Point 2 Station Dump. ##
-        AP2STATIONS=`grep "Station" $aprdir/ap2/station.dump 2>/dev/null | awk '{print $2}'`
-        rm -f $aprdir/ap2/station.lock >/dev/null 2>&1
-	rm -f $aprdir/ap2/station.dump >/dev/null 2>&1
-
-	### AP3 ###
-	touch $aprdir/ap3/survey.lock >/dev/null 2>&1
-	touch $aprdir/ap3/station.lock >/dev/null 2>&1
-	sleep .15
-	## Retreive Access Point 3 Survey Dump. ##
-	AP3NOISE=`grep -A1 'in use' $aprdir/ap3/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
-	if [ "$AP3NOISE" = "" ]; then
-		if [ -f $aprdir/ap3prevnoise ]; then
-			AP3NOISE=`cat $aprdir/ap3prevnoise`
-		else
-			AP3NOISE=$DEFAULTNOISE
-		fi
-	else
-		echo $AP3NOISE > $aprdir/ap3prevnoise
-	fi
-	rm -f $aprdir/ap3/survey.lock >/dev/null 2>&1
-	rm -f $aprdir/ap3/survey.dump >/dev/null 2>&1
-	## Retreive Access Point 3 Station Dump. ##
-        AP3STATIONS=`grep "Station" $aprdir/ap3/station.dump 2>/dev/null | awk '{print $2}'`
-        rm -f $aprdir/ap3/station.lock >/dev/null 2>&1
-	rm -f $aprdir/ap3/station.dump >/dev/null 2>&1
-
-	# Combine All Access Point Clients.
-	STATIONS="$AP1STATIONS $AP2STATIONS $AP3STATIONS"
+		COUNT=$(($COUNT+1))
+	done
 
 	# Strip Out Duplicates.
 	STATIONS=`echo "$STATIONS" | grep -Eo ..\(\:..\){5} | awk '!a[$0]++'`
@@ -158,17 +126,17 @@ do
 	# Get Station Count.
 	STATIONCOUNT=`echo "$STATIONS" | grep -Eoc ..\(\:..\){5}`
 
-	#### PING STATIONS TO IMPROVE CHANCE OF RETREIVING A SIGNAL. ####
+	#### PING STATIONS TO IMPROVE CHANCE OF RETRIEVING A SIGNAL. ####
 	if [ "$KEEPALIVELOOP" -ge "$KEEPALIVE" -a "$KEEPALIVE" -ne "0" ]; then
 		KEEPALIVELOOP=10
 		COUNT=$STATIONCOUNT
 		while [ "$COUNT" -gt "0" ]
 		do
 			STATION=`echo $STATIONS | awk -v x=$COUNT '{print $x}'`
-			# First Try Retreiving Ip Address From Dnsmasq Lease File.
+			# First Try Retrieving Ip Address From Dnsmasq Lease File.
 			ip=`cat /var/lib/misc/dnsmasq.leases | grep -m1 "$STATION" | awk '{print $3}'`
 			if [ "$ip" = "" ]; then
-				# Second Try Retreiving Ip Address From Arp Cache.
+				# Second Try Retrieving Ip Address From Arp Cache.
 				ip=`cat /proc/net/arp | grep -m1 "$STATION" | awk '{print $1}'`
 				if [ "$ip" = "" ]; then
 					# Third Try Pinging Every Ip Address On Subnet.
@@ -188,315 +156,202 @@ do
 		KEEPALIVELOOP=$(($KEEPALIVELOOP+10))
 	fi
 
-	#### RETREIVE NETWORK DATA AND DO PREPROCESSING. ####
+	#### RETRIEVE NETWORK DATA AND DO PREPROCESSING. ####
 
-        # Retreive Access Point 1 Network Data Dump.
-	touch $aprdir/ap1/network.lock >/dev/null 2>&1
-	sleep .15
-	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap1/ap1_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap1_network.dump
-	rm -f $aprdir/ap1/network.lock >/dev/null 2>&1
+        COUNT='1'
+        while [ "${COUNT}" -le "$APCOUNT" ]
+        do
+        	# Retrieve Access Point 1 Network Data Dump.
+		touch $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
+		sleep .15
+		# Preprocess Network Data By Greping Out Unwanted Packets.
+		tcpdump -e -t -r $aprdir/AP${COUNT}/AP${COUNT}_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/AP${COUNT}_network.dump
+		rm -f $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
+		COUNT=$(($COUNT+1))
+	done
 
-        # Retreive Access Point 2 Network Data Dump.
-	touch $aprdir/ap2/network.lock >/dev/null 2>&1
-	sleep .15
-	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap2/ap2_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap2_network.dump
-	rm -f $aprdir/ap2/network.lock >/dev/null 2>&1
+	#### RETRIEVE STATION SIGNAL VALUES. ####
 
-	# Retreive Access Point 3 Network Data Dump.
-	touch $aprdir/ap3/network.lock >/dev/null 2>&1
-	sleep .15
-	# Preprocess Network Data By Greping Out Unwanted Packets.
-	tcpdump -e -t -r $aprdir/ap3/ap3_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/ap3_network.dump
-	rm -f $aprdir/ap3/network.lock >/dev/null 2>&1
-
-	#### RETREIVE STATION SIGNAL VALUES. ####
-
-	while [ "${STATIONCOUNT}" -gt "0" ]
+	while [ "$STATIONCOUNT" -gt "0" ]
 	do
 		APSNRDIFF='0'
-		DEAUTHSTATION='0'
-		SNRDIFF='0'
-		SNR2DIFF='0'
+		DEAUTHSTATION='-1'
+		SNRDIFF='-1'
+		SNR2DIFF='-1'
 		STATION=`echo $STATIONS | awk -v x=$STATIONCOUNT '{print $x}'`
-		CONNECTEDTOAP1=`echo $AP1STATIONS | grep -c $STATION`
-		CONNECTEDTOAP2=`echo $AP2STATIONS | grep -c $STATION`
-		CONNECTEDTOAP3=`echo $AP3STATIONS | grep -c $STATION`
+		CONNECTEDTOAP=''
 
-		AP1SIGNAL=`grep $STATION $aprdir/ap1_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
-		if [ "$AP1SIGNAL" = "" ]; then
-			AP1SNR=0
-		elif [ "$AP1SIGNAL" -le "$AP1NOISE" ]; then
-			AP1SNR=0
-		else
-			AP1SNR=`echo $(($AP1NOISE-$AP1SIGNAL)) | sed 's/-//'`
-		fi
-		AP2SIGNAL=`grep $STATION $aprdir/ap2_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
-		if [ "$AP2SIGNAL" = "" ]; then
-			AP2SNR=0
-                elif [ "$AP2SIGNAL" -le "$AP2NOISE" ]; then
-			AP2SNR=0
-		else
-                        AP2SNR=`echo $(($AP2NOISE-$AP2SIGNAL)) | sed 's/-//'`
-                fi
-		AP3SIGNAL=`grep $STATION $aprdir/ap3_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
-		if [ "$AP3SIGNAL" = "" ]; then
-			AP3SNR=0
-		elif [ "$AP3SIGNAL" -le "$AP3NOISE" ]; then
-			AP3SNR=0
-		else
-                        AP3SNR=`echo $(($AP3NOISE-$AP3SIGNAL)) | sed 's/-//'`
-		fi
+		#### DETECT THE ACCESS POINT THE STATION IS CONNECTED TO. ####
+
+		COUNT='1'
+        	while [ "${COUNT}" -le "$APCOUNT" ]
+        	do
+			CONNECTEDTOAP=`echo "${APSTATIONS[${COUNT}]}" | grep -c $STATION`
+			if [ "$CONNECTEDTOAP" -gt "0" ]; then
+				APCONNECTED="${COUNT}"
+			fi
+			COUNT=$(($COUNT+1))
+		done
+
+		#### RETRIEVE THE STATIONS SIGNAL LEVELS ON THE ACCESS POINTS AND CALCULATE THE SIGNAL TO NOISE RATIOS. ####
+
+		COUNT='1'
+		while [ "${COUNT}" -le "$APCOUNT" ]
+		do
+			APSIGNAL=`grep $STATION $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+			if [ "$APSIGNAL" = "" ]; then
+				APSNR[${COUNT}]=0
+			elif [ "$APSIGNAL" -le "${APNOISE[${COUNT}]}" ]; then
+				APSNR[${COUNT}]=0
+			else
+				APSNR[${COUNT}]=`echo $((${APNOISE[${COUNT}]}-$APSIGNAL)) | sed 's/-//'`
+			fi
+			COUNT=$(($COUNT+1))
+		done
+
+		APCONNECTEDSNR="${APSNR[${APCONNECTED}]}"
 
 		#### PREVENT STATIONS FROM CONSTANTLY HOPPING AROUND DIFFERENT ACCESS POINTS DO TO SIMULAR SIGNAL TO NOISE LEVELS. ####
 
-		ADJUST=0
-		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
-			if [ "${AP1SNR}" -lt "${AP2SNR}" -o "${AP1SNR}" -lt "${AP3SNR}" ]; then
-				if [ "${AP1SNR}" -ge "35" ]; then
-					ADJUST=99
-				elif [ "${AP1SNR}" -ge "30" ]; then
-					ADJUST=18
-                        	elif [ "${AP1SNR}" -ge "25" ]; then
-					ADJUST=15
-				elif [ "${AP1SNR}" -ge "20" ]; then
-					ADJUST=10
-				elif [ "${AP1SNR}" -gt "0" ]; then
-					ADJUST=8
-				fi
-			fi
-		fi
-		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
-			if [ "${AP2SNR}" -lt "${AP1SNR}" -o "${AP2SNR}" -lt "${AP3SNR}" ]; then
-				if [ "${AP2SNR}" -ge "35" ]; then
-					ADJUST=99
-				elif [ "${AP2SNR}" -ge "30" ]; then
-					ADJUST=18
-				elif [ "${AP2SNR}" -ge "25" ]; then
-					ADJUST=15
-				elif [ "${AP2SNR}" -ge "20" ]; then
-					ADJUST=10
-				elif [ "${AP2SNR}" -gt "0" ]; then
-					ADJUST=8
-				fi
-			fi
-		fi
-		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
-			if [ "${AP3SNR}" -lt "${AP1SNR}" -o "${AP3SNR}" -lt "${AP2SNR}" ]; then
-				if [ "${AP3SNR}" -ge "35" ]; then
-					ADJUST=99
-				elif [ "${AP3SNR}" -ge "30" ]; then
-					ADJUST=18
-				elif [ "${AP3SNR}" -ge "25" ]; then
-					ADJUST=15
-				elif [ "${AP3SNR}" -ge "20" ]; then
-					ADJUST=10
-				elif [ "${AP3SNR}" -gt "0" ]; then
-					ADJUST=8
-				fi
-			fi
+		ADJUST='0'
+		if [ "${APCONNECTEDSNR}" -ge "35" ]; then
+			ADJUST=99
+		elif [ "${APCONNECTEDSNR}" -ge "30" ]; then
+			ADJUST=18
+		elif [ "${APCONNECTEDSNR}" -ge "25" ]; then
+			ADJUST=15
+		elif [ "${APCONNECTEDSNR}" -ge "20" ]; then
+			ADJUST=10
+		elif [ "${APCONNECTEDSNR}" -gt "0" ]; then
+			ADJUST=8
 		fi
 
 		#### LOG. ####
 
-		echo " " >> $logdir/$controllog
-		echo "STATION = $STATION" >> $logdir/$controllog
-		echo "AP1 SNR = $AP1SNR dBm" >> $logdir/$controllog
-		echo "AP2 SNR = $AP2SNR dBm">> $logdir/$controllog
-		echo "AP3 SNR = $AP3SNR dBm" >> $logdir/$controllog
+		printf "%b \n" >> $logdir/$controllog
+		printf "%bSTATION = $STATION\n" >> $logdir/$controllog
+		COUNT='1'
+		while [ "${COUNT}" -le "$APCOUNT" ]
+		do
+			printf "AP${COUNT} SNR = ""%6s\n" "${APSNR[${COUNT}]} dBm" >> $logdir/$controllog
+			COUNT=$(($COUNT+1))
+		done
+		printf "%bCONNECTED TO ACCESS POINT        = AP${APCONNECTED}\n" >> $logdir/$controllog
 
-		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
-			echo "CONNECTED TO = AP1" >> $logdir/$controllog
-		elif [ "$CONNECTEDTOAP2" -gt "0" ]; then
-			echo "CONNECTED TO = AP2" >> $logdir/$controllog
-		elif [ "$CONNECTEDTOAP3" -gt "0" ]; then
-			echo "CONNECTED TO = AP3" >> $logdir/$controllog
-		fi
+		#### DETECT IF THERE IS A STRONGER ACCESS POINT COMPARED TO THE CURRENTLY CONNECTED ONE. ####
 
-		#### COMPARE SIGNAL LEVELS WITH OTHER ACCESS POINTS AND SEND DEAUTHENTICATION TO STATION IF ANOTHER ACCESS POINT HAS A BETTER SIGNAL. ####
-
-		if [ "$CONNECTEDTOAP1" -gt "0" ]; then
-			if [ "${AP2SNR}" -gt "$(($AP1SNR+$ADJUST))" -a "${AP2SNR}" -ne "0" -a "${AP1SNR}" -ne "0" ]; then
-				if [ "${AP2SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP2SNR-$AP1SNR))
-					sig_proc "$STATION" ap1 $AP1SNR ap2 $AP2SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-						echo "AP1          = DEAUTHENTICATING!" >> $logdir/$controllog
-						echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-					if [ "$AP1SNR" -ne "$SNR" ]; then
-						AP1SNR=$SNR
-						echo "AP1 ADJUSTED SNR  = $AP1SNR dBm" >> $logdir/$controllog
-					fi
-					if [ "$AP2SNR" -ne "$SNR2" ]; then
-						AP2SNR=$SNR2
-						echo "AP2 ADJUSTED SNR  = $AP2SNR dBm" >> $logdir/$controllog
-					fi
-				else
-					echo "AP2 MAX SNR  = $AP2SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
-				fi
-			elif [ "${AP3SNR}" -gt "$(($AP1SNR+$ADJUST))" -a "${AP3SNR}" -ne "0" -a "${AP1SNR}" -ne "0" ]; then
-				if [ "${AP3SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP3SNR-$AP1SNR))
-					sig_proc "$STATION" ap1 $AP1SNR ap3 $AP3SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-						echo "AP1          = DEAUTHENTICATING!" >> $logdir/$controllog
-						echo "$STATION" | nc -q0 $AP1ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-                                	if [ "$AP1SNR" -ne "$SNR" ]; then
-                                        	AP1SNR=$SNR
-                                        	echo "AP1 ADJUSTED SNR  = $AP1SNR dBm" >> $logdir/$controllog
-                                	fi
-                                	if [ "$AP3SNR" -ne "$SNR2" ]; then
-                                        	AP3SNR=$SNR2
-                                        	echo "AP3 ADJUSTED SNR  = $AP3SNR dBm" >> $logdir/$controllog
-                                	fi
-				else
-					echo "AP3 MAX SNR  = $AP3SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
+		APSTRONGERSNR='0'
+		COUNT='1'
+		while [ "${COUNT}" -le "$APCOUNT" ]
+        	do
+			if [ "${APSNR[${COUNT}]}" -gt "${APCONNECTEDSNR}" ]; then
+				if [ "${APSNR[${COUNT}]}" -gt "${APSTRONGERSNR}" ]; then
+					APSTRONGERSNR="${APSNR[${COUNT}]}"
+					APSTRONGER="${COUNT}"
 				fi
 			fi
-		fi
-		if [ "$CONNECTEDTOAP2" -gt "0" ]; then
-                        if [ "${AP1SNR}" -gt "$(($AP2SNR+$ADJUST))" -a "${AP1SNR}" -ne "0" -a "${AP2SNR}" -ne "0" ]; then
-				if [ "${AP1SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP1SNR-$AP2SNR))
-					sig_proc "$STATION" ap2 $AP2SNR ap1 $AP1SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-                                		echo "AP2          = DEAUTHENTICATING!" >> $logdir/$controllog
-                                		echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-                                	if [ "$AP2SNR" -ne "$SNR" ]; then
-                                        	AP2SNR=$SNR
-                                        	echo "AP2 ADJUSTED SNR  = $AP2SNR dBm" >> $logdir/$controllog
-                                	fi
-                                	if [ "$AP1SNR" -ne "$SNR2" ]; then
-                                        	AP1SNR=$SNR2
-                                        	echo "AP1 ADJUSTED SNR  = $AP1SNR dBm" >> $logdir/$controllog
-                                	fi
-				else
-					echo "AP1 MAX SNR  = $AP1SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
-				fi
-                        elif [ "${AP3SNR}" -gt "$(($AP2SNR+$ADJUST))" -a "${AP3SNR}" -ne "0" -a "${AP2SNR}" -ne "0" ]; then
-				if [ "${AP3SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP3SNR-$AP2SNR))
-					sig_proc "$STATION" ap2 $AP2SNR ap3 $AP3SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-                                		echo "AP2          = DEAUTHENTICATING!" >> $logdir/$controllog
-                                		echo "$STATION" | nc -q0 $AP2ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-                                	if [ "$AP2SNR" -ne "$SNR" ]; then
-                                        	AP2SNR=$SNR
-                                        	echo "AP ADJUSTED SNR  = $AP2SNR dBm " >> $logdir/$controllog
-                                	fi
-                                	if [ "$AP3SNR" -ne "$SNR2" ]; then
-                                        	AP3SNR=$SNR2
-                                        	echo "AP3 ADJUSTED SNR  = $AP3SNR dBm" >> $logdir/$controllog
-                                	fi
-				else
-					echo "AP3 MAX SNR  = $AP3SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
-				fi
-                        fi
-                fi
-		if [ "$CONNECTEDTOAP3" -gt "0" ]; then
-                        if [ "${AP1SNR}" -gt "$(($AP3SNR+$ADJUST))" -a "${AP1SNR}" -ne "0" -a "${AP3SNR}" -ne "0" ]; then
-				if [ "${AP1SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP1SNR-$AP3SNR))
-					sig_proc "$STATION" ap3 $AP3SNR ap1 $AP1SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-						echo "AP3          = DEAUTHENTICATING!" >> $logdir/$controllog
-						echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-                                	if [ "$AP3SNR" -ne "$SNR" ]; then
-                                        	AP3SNR=$SNR
-                                        	echo "AP3 ADJUSTED SNR  = $AP3SNR dBm" >> $logdir/$controllog
-                                	fi
-                                	if [ "$AP1SNR" -ne "$SNR2" ]; then
-                                        	AP1SNR=$SNR2
-                                        	echo "AP1 ADJUSTED SNR  = $AP1SNR dBm" >> $logdir/$controllog
-                                	fi
-				else
-					echo "AP1 MAX SNR  = $AP1SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
-				fi
-                        elif [ "${AP2SNR}" -gt "$(($AP3SNR+$ADJUST))" -a "${AP2SNR}" -ne "0" -a "${AP3SNR}" -ne "0" ]; then
-				if [ "${AP2SNR}" -le "${MAXSNR}" ]; then
-					APSNRDIFF=$(($AP2SNR-$AP3SNR))
-					sig_proc "$STATION" ap3 $AP3SNR ap2 $AP2SNR
-					if [ "$DEAUTHSTATION" -eq "1" ]; then
-						echo "AP3          = DEAUTHENTICATING!" >> $logdir/$controllog
-						echo "$STATION" | nc -q0 $AP3ADDRESS $DEAUTHPORT 2>/dev/null &
-					fi
-                                	if [ "$AP3SNR" -ne "$SNR" ]; then
-                                        	AP3SNR=$SNR
-                                        	echo "AP3 ADJUSTED SNR  = $AP3SNR dBm" >> $logdir/$controllog
-                                	fi
-                                	if [ "$AP2SNR" -ne "$SNR2" ]; then
-                                        	AP2SNR=$SNR2
-                                        	echo "AP2 ADJUSTED SNR  = $AP2SNR dBm" >> $logdir/$controllog
-                                	fi
-				else
-					echo "AP2 MAX SNR  = $AP2SNR dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
-                        	fi
-			fi
+			COUNT=$(($COUNT+1))
+		done
+
+		#### COMPARE SIGNAL LEVELS AND SEND DEAUTHENTICATION TO THE STATION IF ANOTHER ACCESS POINT HAS A STRONGER SIGNAL. ####
+
+		if [ "${APSTRONGERSNR}" -gt "$((${APCONNECTEDSNR}+$ADJUST))" -a "${APSTRONGERSNR}" -ne "0" -a "${APCONNECTEDSNR}" -ne "0" ]; then
+                                if [ "${APSTRONGERSNR}" -le "${MAXSNR}" ]; then
+                                        APSNRDIFF=$((${APSTRONGERSNR}-${APCONNECTEDSNR}))
+                                        sig_proc "$STATION" "AP${APCONNECTED}" "${APCONNECTEDSNR}" "AP${APSTRONGER}" "${APSTRONGERSNR}"
+                                        if [ "$DEAUTHSTATION" -eq "1" ]; then
+                                                printf "%bAP${APCONNECTED}                              = DEAUTHENTICATING!\n" >> $logdir/$controllog
+                                                echo "$STATION" | nc -q0 ${APADDRESS[${APCONNECTED}]} $DEAUTHPORT 2>/dev/null &
+                                        fi
+                                        if [ "${APCONNECTEDSNR}" -ne "$SNR" ]; then
+						APSNR[${APCONNECTED}]=$SNR
+                                                printf "AP${APCONNECTED} SNR ADJUSTMENT               = ""%6s\n" "$SNR dBm" >> $logdir/$controllog
+                                        fi
+                                        if [ "${APSTRONGERSNR}" -ne "$SNR2" ]; then
+                                                APSNR[${APSTRONGER}]=$SNR2
+                                                printf "AP${APSTRONGER} SNR ADJUSTMENT                = ""%6s\n" "$SNR2 dBm" >> $logdir/$controllog
+                                        fi
+                                else
+                                        printf "AP${APSTRONGER} SNR                         = ""%6s\n" "$SNR2 dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
+                                fi
 		fi
 
 		#### LOG. ####
 
-		if [ "$DEAUTHSTATION" -eq "1" ]; then
-			if [ "$CONNECTEDTOAP1" -gt "0" ]; then
-				AP='AP1'
-			elif [ "$CONNECTEDTOAP2" -gt "0" ]; then
-				AP='AP2'
-			else
-				AP='AP3'
-			fi
+		if [ "$DEAUTHSTATION" -ne "-1" ]; then
 			DATE=`date`
-			echo "-------------------- $DATE --------------------" >> $logdir/$deauthlog
-			echo " " >> $logdir/$deauthlog
-			echo "STATION = $STATION\nCONNECTED AP = $AP\nAPSNRDIFF    = $APSNRDIFF dBm\nADJUST       = $ADJUST dBm\nAP1 = $AP1SNR dBm\nAP2 = $AP2SNR dBm\nAP3 = $AP3SNR dBm \
-			\nAP MAX CUR TO PREV SNR DIFF  = $MAXSNRDIFF dBm\nAP CUR TO PREV SNR DIFF      = $SNRDIFF dBm\nNEW AP CUR TO PREV SNR DIFF  = $SNR2DIFF dBm\n" >> $logdir/$deauthlog
-			echo "----------------------------------------------------------------------" >> $logdir/$deauthlog
-			echo " " >> $logdir/$deauthlog
+			printf "%b-------------------- $DATE --------------------\n\n" >> $logdir/$deauthlog
+			if [ "$DEAUTHSTATION" -eq "0" ]; then
+				printf "%b                          NOT DEAUTHENICATED!\n\n" >> $logdir/$deauthlog
+			fi
+			if [ "$DEAUTHSTATION" -eq "1" ]; then
+				printf "%b                           DEAUTHENICATED!\n\n" >> $logdir/$deauthlog
+			fi
+			printf "%bSTATION = $STATION\n" >> $logdir/$deauthlog
+			COUNT='1'
+			while [ "${COUNT}" -le "$APCOUNT" ]
+			do
+				printf "AP${COUNT} = ""%6s\n" "${APSNR[${COUNT}]} dBm" >> $logdir/$deauthlog
+				COUNT=$(($COUNT+1))
+			done
+			printf "%bCONNECTED TO ACCESS POINT        = AP${APCONNECTED}\n" >> $logdir/$deauthlog
+			printf "AP${APCONNECTED} TO AP${APSTRONGER} SNR DIFF              = ""%6s\n" "$APSNRDIFF dBm" >> $logdir/$deauthlog
+			if [ "$APSTRONGERSNR" -gt "0" ]; then
+				printf "AP${APSTRONGER} SNR THRESHOLD ADJUSTMENT     = ""%6s\n" "$ADJUST dBm" >> $logdir/$deauthlog
+			fi
+			if [ "$DEAUTHSTATION" -eq "0" -a "$SNRDIFF" -lt "$MAXSNRDROP" -a "$SNRDIFF" -gt "$SNRDROP" ]; then
+                                printf "AP MAXIMUM SNR DROP ALLOWED      = ""%6s\n" "$SNRDROP dBm" >> $logdir/$deauthlog
+                        fi
+			if [ "$DEAUTHSTATION" -eq "0" -a "$SNRDIFF" -gt "$MAXSNRDROP" ]; then
+				printf "AP MAXIMUM SNR DROP ALLOWED      = ""%6s\n" "$MAXSNRDROP dBm" >> $logdir/$deauthlog
+			elif [ "$DEAUTHSTATION" -eq "0" -a "$SNRDIFF" -le "$SNRDROP" ]; then
+                                printf "AP MAXIMUM SNR DIFF ALLOWED      = ""%6s\n" "$MAXSNRDIFF dBm" >> $logdir/$deauthlog
+                        fi
+			printf "AP${APCONNECTED} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNRDIFF dBm" >> $logdir/$deauthlog
+			printf "AP${APSTRONGER} CUR TO PREV SNR DIFF         = ""%6s\n\n" "$SNR2DIFF dBm" >> $logdir/$deauthlog
+			printf "%b----------------------------------------------------------------------\n" >> $logdir/$deauthlog
+			printf "%b \n" >> $logdir/$deauthlog
 		fi
 
 		if [ "$APSNRDIFF" -gt "0" ]; then
-			echo "ACCESS POINT SNR DIFF         = $APSNRDIFF dBm" >> $logdir/$controllog
+			printf "AP${APCONNECTED} TO AP${APSTRONGER} SNR DIFF              = ""%6s\n" "$APSNRDIFF dBm" >> $logdir/$controllog
 		fi
-		if [ "$ADJUST" -gt "0" ]; then
-			echo "SNR THRESHOLD                 = $ADJUST dBm" >> $logdir/$controllog
+		if [ "$APSTRONGERSNR" -gt "0" ]; then
+			printf "AP${APSTRONGER} SNR THRESHOLD ADJUSTMENT     = ""%6s\n" "$ADJUST dBm" >> $logdir/$controllog
 		fi
-		if [ "$SNRDIFF" -gt "0" ]; then
-				echo "AP CUR TO PREV SNR DIFF       = $SNRDIFF dBm" >> $logdir/$controllog
+		if [ "$SNRDIFF" -gt "-1" ]; then
+			printf "AP${APCONNECTED} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNRDIFF dBm" >> $logdir/$controllog
 		fi
-		if [ "$SNR2DIFF" -gt "0" ]; then
-				echo "NEW AP CUR TO PREV SNR DIFF   = $SNR2DIFF dBm" >> $logdir/$controllog
+		if [ "$SNRDIFF" -gt "$MAXSNRDROP" -a "$DEAUTHSTATION" -eq "0" ]; then
+			printf "%bAP${APCONNECTED} SNR DIFF                     = GREATER THAN MAX SNR DROP NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
 		fi
-		if [ "$SNRDIFF" -ge "$MAXSNRDIFF" -o "$SNR2DIFF" -ge "$MAXSNRDIFF" ]; then
-			echo "AP MAX CUR TO PREV SNR DIFF   = $MAXSNRDIFF dBm EXCEEDED! NOT DEAUTHENTICATING!" >> $logdir/$controllog
+		if [ "$SNR2DIFF" -gt "-1" ]; then
+			printf "AP${APSTRONGER} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNR2DIFF dBm" >> $logdir/$controllog
 		fi
-
+		if [ "$SNR2DIFF" -gt "$MAXSNRDIFF" -a "$DEAUTHSTATION" -eq "0" ]; then
+			printf "%bAP${APSTRONGER} SNR DIFF                     = GREATER THAN MAX SNR DIFF NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
+		fi
 
 		#### SAVE CURRENT STATION SNR FOR ALL ACCESS POINTS. ####
 
-		if [ "$AP1SNR" -ne "0" ]; then
-			echo $AP1SNR > $aprdir/ap1snr.$STATION
-		fi
-		if [ "$AP2SNR" -ne "0" ]; then
-			echo $AP2SNR > $aprdir/ap2snr.$STATION
-		fi
-		if [ "$AP3SNR" -ne "0" ]; then
-			echo $AP3SNR > $aprdir/ap3snr.$STATION
-		fi
+		COUNT='1'
+		while [ "${COUNT}" -le "$APCOUNT" ]
+		do
+			if [ "${APSNR[${COUNT}]}" -ne "0" ]; then
+				echo ${APSNR[${COUNT}]} > $aprdir/AP${COUNT}snr.$STATION
+			fi
+			COUNT=$(($COUNT+1))
+		done
 
 		STATIONCOUNT=$(($STATIONCOUNT-1))
 	done
 
 	#### LOG. ####
 
-	echo " " >> $logdir/$controllog
+	printf "%b \n" >> $logdir/$controllog
 	DATE=`date`
-        echo "-------------------- $DATE --------------------" >> $logdir/$controllog
-	echo " " >> $logdir/$controllog
+        printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
+	printf "%b \n" >> $logdir/$controllog
 
 	#### DYNAMICALLY ADJUST SLEEP TIME BASED ON HOW LONG IT TOOK TO EXECUTE.
 

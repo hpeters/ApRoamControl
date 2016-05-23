@@ -89,6 +89,7 @@ Otherwise by default it will report stations even if they have been disconnected
 On the Server ( ApRoamControl machine ):
 
 Dependencies:
+bash
 fping
 
 Create the directory /usr/local/bin

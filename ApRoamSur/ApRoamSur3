@@ -3,17 +3,17 @@
 renice -1 --pid $$ >/dev/null 2>&1
 
 aprdir='/tmp/ApRoam'
-ADDRESS='192.168.1.6'
+ADDRESS='192.168.1.8'
 SURPORT='777'
 PORT='703'
 
-mkdir -p $aprdir/ap3
+mkdir -p $aprdir/AP3
 
 while true
 do
-        if [ ! -f "$aprdir/ap3/survey.lock" ]; then
+        if [ ! -f "$aprdir/AP3/survey.lock" ]; then
 		# Launch Server To Receive Survey Data.
-		nc -l -p $PORT > $aprdir/ap3/survey.dump 2>/dev/null &
+		nc -l -p $PORT > $aprdir/AP3/survey.dump 2>/dev/null &
 		pid=$!
 		echo $pid > /var/run/ApRoamSur3_nc.pid
 		# Trigger Access Point To Send Survey Data.
@@ -22,7 +22,7 @@ do
                 while [ "${loop}" -eq "1" ]
                 do
 			# Check For Station Lock Kill Server If Running.
-                        if [ -f "$aprdir/ap3/survey.lock" ]; then
+                        if [ -f "$aprdir/AP3/survey.lock" ]; then
 				kill $pid >/dev/null 2>&1
 				loop=0
 				# Delay Retreiving Survey Data.
