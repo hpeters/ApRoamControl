@@ -7,7 +7,7 @@ renice -1 $$ >/dev/null 2>&1
 aprdir='/tmp/ApRoam'
 controllog='control.log'
 deauthlog='deauth.log'
-logdir='/var/zram/ApRoam'
+logdir='/var/log/ApRoam'
 
 #### SIGNAL PROCESSING FUNCTION ####
 
