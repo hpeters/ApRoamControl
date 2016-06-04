@@ -1,0 +1,28 @@
+#!/bin/sh
+
+renice -1 --pid $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+ADDRESS=$1
+PORT=$2
+AP=$3
+DELAY=$4
+SURPORT='777'
+
+mkdir -p $aprdir/$AP
+
+# Delay Retreiving Survey Data.
+sleep $(($DELAY-2))
+
+# Launch Server To Receive Survey Data.
+nc -l -p $PORT > $aprdir/$AP/survey.dump 2>/dev/null &
+pid=$!
+
+# Trigger Access Point To Send Station Data.
+nc -q0 $ADDRESS $SURPORT 2>/dev/null
+ERROR=$?
+if [ "$ERROR" -gt "0" ]; then
+        kill $pid >/dev/null 2>&1
+fi
+
+exit 0

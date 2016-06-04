@@ -16,6 +16,8 @@ PATH=/usr/local/bin:/bin:/usr/bin:/sbin:/usr/sbin
 DAEMON=/usr/local/bin/ApRoamControl
 PIDFILE=/var/run/ApRoamControl.pid
 
+aprdir="/tmp/ApRoam"
+
 test -x $DAEMON || exit 0
 
 . /lib/lsb/init-functions
@@ -31,6 +33,19 @@ case "$1" in
 	log_daemon_msg "Stopping Access Point Roam Controller Service" "ApRoamControl"
 	killproc -p $PIDFILE $DAEMON
 	log_end_msg $?
+	COUNT='1'
+	# Kill All Support Background Processes.
+	while [ "$COUNT" -le "99" ]
+	do
+		if [ -d "${aprdir}/AP${COUNT}" ]; then
+			touch ${aprdir}/AP${COUNT}/network.lock >/dev/null 2>&1
+		else
+			COUNT='100'
+		fi
+		COUNT=$(($COUNT+1))
+	done
+	killall ApRoamSta > /dev/null 2>&1
+	killall ApRoamSur > /dev/null 2>&1
     ;;
   force-reload|restart)
     $0 stop

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 renice -1 $$ >/dev/null 2>&1
+echo $$ > /var/run/ApRoamControl.pid
 
 #### Paths. ####
 
@@ -50,6 +51,10 @@ sig_proc() {
 	fi
 }
 
+#### 1=ENABLE, 0=DISABLE LOGGING ####
+CONTROLLOG='1'
+DEAUTHLOG='1'
+
 #### INTIALIZE ARRAYS, VARIABLES AND CLEAN UP. ####
 declare -a APADDRESS
 declare -a APNOISE
@@ -63,27 +68,47 @@ DEAUTHPORT='555'
 DEAUTHSTATION='1'
 DEFAULTNOISE='-88'
 KEEPALIVELOOP='10'
+LOOPTIME='10'
 MAXSNR='80'
 MAXSNRDIFF='20'
 MAXSNRDROP='25'
+RESTARTED=$1
+if [ "$RESTARTED" = "" ]; then
+RESTARTED='0'
+fi
 SNRDROP='12'
 # KEEPALIVE sets how often you ping stations. Pinging improves signal detection but at the cost of increased battery consumption by the stations.
 # To set KEEPALIVE: 0=Ping disabled 10=Ping every 10 seconds 20=Ping every 20 seconds 30=Ping every 30 seconds etc.
-KEEPALIVE='10'
-rm -f $aprdir/AP*snr.*
-rm -f $aprdir/AP*prevnoise
-rm -f $aprdir/deauth
-mkdir -p $aprdir
-mkdir -p $logdir
-touch $logdir/deauth.log
+KEEPALIVE='0'
+if [ "$RESTARTED" -ne "1" ]; then
+	rm -f $aprdir/AP*snr.*
+	rm -f $aprdir/AP*prevnoise
+	rm -f $aprdir/deauth
+	mkdir -p $aprdir
+fi
+if [ "$CONTROLLOG" -eq "1" ]; then
+	mkdir -p $logdir
+	touch $logdir/$controllog
+fi
+if [ "$DEAUTHLOG" -eq "1" ]; then
+	mkdir -p $logdir
+	touch $logdir/$deauthlog
+fi
 
 #### MAIN LOOP ####
 
-while true
+# Do To A Bash Or Supporting Program Bug ApRoamControl Gets Slower And Uses More Cpu Over time.
+# So Set ApRoamControl To Restart Every Half An Hour.
+RESTART=$((60/$LOOPTIME))
+RESTART=$(($RESTART*30))
+MAINCOUNT='1'
+while [ "$MAINCOUNT" -le "$RESTART" ]
 do
 	STARTTIME=`date +%s`
-	DATE=`date`
-	printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
+	if [ "$CONTROLLOG" -eq "1" ]; then
+		DATE=`date`
+		printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
+	fi
 
 	#### RETRIEVE STATION AND SURVEY DATA. ####
 
@@ -91,9 +116,6 @@ do
 	STATIONS=''
 	while [ "${COUNT}" -le "$APCOUNT" ]
 	do
-		touch $aprdir/AP${COUNT}/survey.lock >/dev/null 2>&1
-		touch $aprdir/AP${COUNT}/station.lock >/dev/null 2>&1
-		sleep .15
 		## Retrieve Survey Dump. ##
 		APNOISE[${COUNT}]=`grep -A1 'in use' $aprdir/AP${COUNT}/survey.dump 2>/dev/null | grep noise: | awk '{print $2}'`
 		if [ "${APNOISE[${COUNT}]}" = "" ]; then
@@ -105,12 +127,22 @@ do
 		else
 			echo ${APNOISE[${COUNT}]} > $aprdir/AP${COUNT}prevnoise
 		fi
-		rm -f $aprdir/AP${COUNT}/survey.lock >/dev/null 2>&1
 		rm -f $aprdir/AP${COUNT}/survey.dump >/dev/null 2>&1
+                if [ "$COUNT" -lt "10" ]; then
+                        SURPORT="70${COUNT}"
+                else
+                        SURPORT="7${COUNT}"
+                fi
+                ApRoamSur ${APADDRESS[${COUNT}]} $SURPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		## Retrieve Access Station Dump. ##
 		APSTATIONS[${COUNT}]=`grep "Station" $aprdir/AP${COUNT}/station.dump 2>/dev/null | awk '{print $2}'`
-        	rm -f $aprdir/AP${COUNT}/station.lock >/dev/null 2>&1
 		rm -f $aprdir/AP${COUNT}/station.dump >/dev/null 2>&1
+		if [ "$COUNT" -lt "10" ]; then
+			STAPORT="60${COUNT}"
+		else
+			STAPORT="6${COUNT}"
+		fi
+		ApRoamSta ${APADDRESS[${COUNT}]} $STAPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		# Combine All Stations.
 		if [ "$STATIONS" != "" ]; then
 			STATIONS="${STATIONS} ${APSTATIONS[${COUNT}]}"
@@ -161,12 +193,23 @@ do
         COUNT='1'
         while [ "${COUNT}" -le "$APCOUNT" ]
         do
-        	# Retrieve Access Point 1 Network Data Dump.
 		touch $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
-		sleep .15
+		COUNT=$(($COUNT+1))
+	done
+	sleep .25
+
+        COUNT='1'
+        while [ "${COUNT}" -le "$APCOUNT" ]
+        do
 		# Preprocess Network Data By Greping Out Unwanted Packets.
 		tcpdump -e -t -r $aprdir/AP${COUNT}/AP${COUNT}_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/AP${COUNT}_network.dump
 		rm -f $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
+                if [ "$COUNT" -lt "10" ]; then
+                        SRVPORT="40${COUNT}"
+                else
+                        SRVPORT="4${COUNT}"
+                fi
+                ApRoamSrv ${APADDRESS[${COUNT}]} $SRVPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		COUNT=$(($COUNT+1))
 	done
 
@@ -181,23 +224,17 @@ do
 		STATION=`echo $STATIONS | awk -v x=$STATIONCOUNT '{print $x}'`
 		CONNECTEDTOAP=''
 
-		#### DETECT THE ACCESS POINT THE STATION IS CONNECTED TO. ####
-
-		COUNT='1'
-        	while [ "${COUNT}" -le "$APCOUNT" ]
-        	do
-			CONNECTEDTOAP=`echo "${APSTATIONS[${COUNT}]}" | grep -c $STATION`
-			if [ "$CONNECTEDTOAP" -gt "0" ]; then
-				APCONNECTED="${COUNT}"
-			fi
-			COUNT=$(($COUNT+1))
-		done
-
-		#### RETRIEVE THE STATIONS SIGNAL LEVELS ON THE ACCESS POINTS AND CALCULATE THE SIGNAL TO NOISE RATIOS. ####
+		#### DETECT THE ACCESS POINT THE STATION IS CONNECTED TO, RETRIEVE THE STATIONS SIGNAL LEVELS ON THE ACCESS POINTS AND CALCULATE THE SIGNAL TO NOISE RATIOS. ####
 
 		COUNT='1'
 		while [ "${COUNT}" -le "$APCOUNT" ]
 		do
+			# Detect The Access Point The Station Is Connected To.
+			CONNECTEDTOAP=`echo "${APSTATIONS[${COUNT}]}" | grep -c $STATION`
+                        if [ "$CONNECTEDTOAP" -gt "0" ]; then
+                                APCONNECTED="${COUNT}"
+                        fi
+			# Retrieve The Stations Signal Levels On The Access Points And Calculate The Signal To Noise Ratios.
 			APSIGNAL=`grep $STATION $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
 			if [ "$APSIGNAL" = "" ]; then
 				APSNR[${COUNT}]=0
@@ -227,16 +264,17 @@ do
 		fi
 
 		#### LOG. ####
-
-		printf "%b \n" >> $logdir/$controllog
-		printf "%bSTATION = $STATION\n" >> $logdir/$controllog
-		COUNT='1'
-		while [ "${COUNT}" -le "$APCOUNT" ]
-		do
-			printf "AP${COUNT} SNR = ""%6s\n" "${APSNR[${COUNT}]} dBm" >> $logdir/$controllog
-			COUNT=$(($COUNT+1))
-		done
-		printf "%bCONNECTED TO ACCESS POINT        = AP${APCONNECTED}\n" >> $logdir/$controllog
+		if [ "$CONTROLLOG" -eq "1" ]; then
+			printf "%b \n" >> $logdir/$controllog
+			printf "%bSTATION = $STATION\n" >> $logdir/$controllog
+			COUNT='1'
+			while [ "${COUNT}" -le "$APCOUNT" ]
+			do
+				printf "AP${COUNT} SNR = ""%6s\n" "${APSNR[${COUNT}]} dBm" >> $logdir/$controllog
+				COUNT=$(($COUNT+1))
+			done
+			printf "%bCONNECTED TO ACCESS POINT        = AP${APCONNECTED}\n" >> $logdir/$controllog
+		fi
 
 		#### DETECT IF THERE IS A STRONGER ACCESS POINT COMPARED TO THE CURRENTLY CONNECTED ONE. ####
 
@@ -260,25 +298,33 @@ do
                                         APSNRDIFF=$((${APSTRONGERSNR}-${APCONNECTEDSNR}))
                                         sig_proc "$STATION" "AP${APCONNECTED}" "${APCONNECTEDSNR}" "AP${APSTRONGER}" "${APSTRONGERSNR}"
                                         if [ "$DEAUTHSTATION" -eq "1" ]; then
-                                                printf "%bAP${APCONNECTED}                              = DEAUTHENTICATING!\n" >> $logdir/$controllog
+						if [ "$CONTROLLOG" -eq "1" ]; then
+                                                	printf "%bAP${APCONNECTED}                              = DEAUTHENTICATING!\n" >> $logdir/$controllog
+						fi
                                                 echo "$STATION" | nc -q0 ${APADDRESS[${APCONNECTED}]} $DEAUTHPORT 2>/dev/null &
                                         fi
                                         if [ "${APCONNECTEDSNR}" -ne "$SNR" ]; then
 						APSNR[${APCONNECTED}]=$SNR
-                                                printf "AP${APCONNECTED} SNR ADJUSTMENT               = ""%6s\n" "$SNR dBm" >> $logdir/$controllog
+						if [ "$CONTROLLOG" -eq "1" ]; then
+                                                	printf "AP${APCONNECTED} SNR ADJUSTMENT               = ""%6s\n" "$SNR dBm" >> $logdir/$controllog
+						fi
                                         fi
                                         if [ "${APSTRONGERSNR}" -ne "$SNR2" ]; then
                                                 APSNR[${APSTRONGER}]=$SNR2
-                                                printf "AP${APSTRONGER} SNR ADJUSTMENT                = ""%6s\n" "$SNR2 dBm" >> $logdir/$controllog
+						if [ "$CONTROLLOG" -eq "1" ]; then
+                                                	printf "AP${APSTRONGER} SNR ADJUSTMENT                = ""%6s\n" "$SNR2 dBm" >> $logdir/$controllog
+						fi
                                         fi
                                 else
-                                        printf "AP${APSTRONGER} SNR                         = ""%6s\n" "$SNR2 dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
+					if [ "$CONTROLLOG" -eq "1" ]; then
+                                        	printf "AP${APSTRONGER} SNR                         = ""%6s\n" "$SNR2 dBm EXCEEDES THE MAX $MAXSNR dBm ALLOWED NOT DEAUTHENTICATING!" >> $logdir/$controllog
+					fi
                                 fi
 		fi
 
 		#### LOG. ####
 
-		if [ "$DEAUTHSTATION" -ne "-1" ]; then
+		if [ "$DEAUTHSTATION" -ne "-1" -a "$DEAUTHLOG" -eq "1" ]; then
 			DATE=`date`
 			printf "%b-------------------- $DATE --------------------\n\n" >> $logdir/$deauthlog
 			if [ "$DEAUTHSTATION" -eq "0" ]; then
@@ -313,24 +359,27 @@ do
 			printf "%b \n" >> $logdir/$deauthlog
 		fi
 
-		if [ "$APSNRDIFF" -gt "0" ]; then
-			printf "AP${APCONNECTED} TO AP${APSTRONGER} SNR DIFF              = ""%6s\n" "$APSNRDIFF dBm" >> $logdir/$controllog
+		if [ "$CONTROLLOG" -eq "1" ]; then
+			if [ "$APSNRDIFF" -gt "0" ]; then
+				printf "AP${APCONNECTED} TO AP${APSTRONGER} SNR DIFF              = ""%6s\n" "$APSNRDIFF dBm" >> $logdir/$controllog
+			fi
+			if [ "$APSTRONGERSNR" -gt "0" -a "$APCONNECTEDSNR" -gt "0" ]; then
+				printf "AP${APSTRONGER} SNR THRESHOLD ADJUSTMENT     = ""%6s\n" "$ADJUST dBm" >> $logdir/$controllog
+			fi
+			if [ "$SNRDIFF" -gt "-1" ]; then
+				printf "AP${APCONNECTED} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNRDIFF dBm" >> $logdir/$controllog
+			fi
+			if [ "$SNRDIFF" -gt "$MAXSNRDROP" -a "$DEAUTHSTATION" -eq "0" ]; then
+				printf "%bAP${APCONNECTED} SNR DIFF                     = GREATER THAN MAX SNR DROP NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
+			fi
+			if [ "$SNR2DIFF" -gt "-1" ]; then
+				printf "AP${APSTRONGER} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNR2DIFF dBm" >> $logdir/$controllog
+			fi
+			if [ "$SNR2DIFF" -gt "$MAXSNRDIFF" -a "$DEAUTHSTATION" -eq "0" ]; then
+				printf "%bAP${APSTRONGER} SNR DIFF                     = GREATER THAN MAX SNR DIFF NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
+			fi
 		fi
-		if [ "$APSTRONGERSNR" -gt "0" ]; then
-			printf "AP${APSTRONGER} SNR THRESHOLD ADJUSTMENT     = ""%6s\n" "$ADJUST dBm" >> $logdir/$controllog
-		fi
-		if [ "$SNRDIFF" -gt "-1" ]; then
-			printf "AP${APCONNECTED} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNRDIFF dBm" >> $logdir/$controllog
-		fi
-		if [ "$SNRDIFF" -gt "$MAXSNRDROP" -a "$DEAUTHSTATION" -eq "0" ]; then
-			printf "%bAP${APCONNECTED} SNR DIFF                     = GREATER THAN MAX SNR DROP NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
-		fi
-		if [ "$SNR2DIFF" -gt "-1" ]; then
-			printf "AP${APSTRONGER} CUR TO PREV SNR DIFF         = ""%6s\n" "$SNR2DIFF dBm" >> $logdir/$controllog
-		fi
-		if [ "$SNR2DIFF" -gt "$MAXSNRDIFF" -a "$DEAUTHSTATION" -eq "0" ]; then
-			printf "%bAP${APSTRONGER} SNR DIFF                     = GREATER THAN MAX SNR DIFF NOT DEAUTHENTICATING!\n" >> $logdir/$controllog
-		fi
+
 
 		#### SAVE CURRENT STATION SNR FOR ALL ACCESS POINTS. ####
 
@@ -348,17 +397,25 @@ do
 
 	#### LOG. ####
 
-	printf "%b \n" >> $logdir/$controllog
-	DATE=`date`
-        printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
-	printf "%b \n" >> $logdir/$controllog
+	if [ "$CONTROLLOG" -eq "1" ]; then
+		printf "%b \n" >> $logdir/$controllog
+		DATE=`date`
+        	printf "%b-------------------- $DATE --------------------\n" >> $logdir/$controllog
+		printf "%b \n" >> $logdir/$controllog
+	fi
 
 	#### DYNAMICALLY ADJUST SLEEP TIME BASED ON HOW LONG IT TOOK TO EXECUTE.
 
 	ENDTIME=`date +%s`
 	EXETIME=$(($ENDTIME-$STARTTIME))
-	SLEEPTIME=$((10-$EXETIME))
+	SLEEPTIME=$(($LOOPTIME-$EXETIME))
 	if [ "$SLEEPTIME" -gt "0" ]; then
 		sleep $SLEEPTIME
 	fi
+	MAINCOUNT=$(($MAINCOUNT+1))
 done
+
+# Restart ApRoamControl.
+ApRoamControl 1 &
+
+exit 0

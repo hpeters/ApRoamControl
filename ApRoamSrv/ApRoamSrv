@@ -1,0 +1,30 @@
+#!/bin/sh
+
+renice -1 --pid $$ >/dev/null 2>&1
+
+aprdir='/tmp/ApRoam'
+ADDRESS=$1
+PORT=$2
+AP=$3
+DELAY=$4
+
+mkdir -p $aprdir/$AP
+
+nc -l -p $PORT > $aprdir/${AP}/${AP}_network.dump 2>/dev/null &
+pid=$!
+loop=1
+timeout=$(($DELAY*10))
+while [ "$loop" -lt "$timeout" ]
+do
+	dumpsize=`stat --printf="%s" $aprdir/${AP}/${AP}_network.dump`
+	if [ -f "$aprdir/${AP}/network.lock" -o "$dumpsize" -gt "25600000" ]; then
+		loop=$(($DELAY*11))
+	else
+		sleep .2
+		loop=$(($loop+1))
+	fi
+done
+
+kill $pid >/dev/null 2>&1
+
+exit 0

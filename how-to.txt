@@ -94,34 +94,17 @@ fping
 
 Create the directory /usr/local/bin
 Copy ApRoamControl/ApRoamControl /usr/local/bin/
-# You will probably want to change the log path in the script to something else. (/tmp/ApRoamControl.log /var/log/ApRoamControl.log etc)
+# You might want to change the log path in the script to something else. (/tmp/ApRoamControl.log /var/log/ApRoamControl.log etc)
+
 Copy etc/logrotate.d/ApRoamControl /etc/logrotate.d/
 # Change the log path to what you set in ApRoamControl.
-# If you need more than three access points just copy ApRoamSta1 to ApRoamSta4 etc.. and change the port numbers in the script (401 to 404 etc..).
-Copy ApRoamSrv/ApRoamSrv1 /usr/local/bin/
-Copy ApRoamSrv/ApRoamSrv2 /usr/local/bin/
-Copy ApRoamSrv/ApRoamSrv3 /usr/local/bin/
-# If you need more than three access points just copy ApRoamSrv1 to ApRoamSrv4 etc.. and change the port numbers in the script (601 to 604 etc..).
-Copy ApRoamSta/ApRoamSta1 /usr/local/bin/
-Copy ApRoamSta/ApRoamSta2 /usr/local/bin/
-Copy ApRoamSta/ApRoamSta3 /usr/local/bin/
-# If you need more than three access points just copy ApRoamSur1 to ApRoamSur4 etc.. and change the port numbers in the script (701 to 704 etc..).
-Copy ApRoamSur/ApRoamSur1 /usr/local/bin/
-Copy ApRoamSur/ApRoamSur2 /usr/local/bin/
-Copy ApRoamSur/ApRoamSur3 /usr/local/bin/
-# Copy over init.d scripts.
-Copy etc/init.d/server/ApRoamControl /etc/init.d/
-# If you need more than three access points just copy ApRoamSrv1 to ApRoamSrv4 etc.. and change any internal references from ApRoamSrv1 to ApRoamSrv4 etc.
-Copy etc/init.d/server/ApRoamSrv1 /etc/init.d/
-Copy etc/init.d/server/ApRoamSrv2 /etc/init.d/
-Copy etc/init.d/server/ApRoamSrv3 /etc/init.d/
-# If you need more than three access points just copy ApRoamSta1 to ApRoamSta4 etc.. and change any internal references from ApRoamSta1 to ApRoamSta4 etc.
-Copy etc/init.d/server/ApRoamSta1 /etc/init.d/
-Copy etc/init.d/server/ApRoamSta2 /etc/init.d/
-Copy etc/init.d/server/ApRoamSta3 /etc/init.d/
-# If you need more than three access points just copy ApRoamSur1 to ApRoamSur4 etc.. and change any internal references from ApRoamSur1 to ApRoamSur etc.
-Copy etc/init.d/server/ApRoamSur1 /etc/init.d/
-Copy etc/init.d/server/ApRoamSur2 /etc/init.d/
-Copy etc/init.d/server/ApRoamSur3 /etc/init.d/
 
-Once you have all the paths, ip addresses and ports set correctly just start up all the init.d scripts /etc/init.d/ApRoamControl start etc. There start order shouldn't matter.
+Copy ApRoamSrv/ApRoamSrv /usr/local/bin/
+Copy ApRoamSta/ApRoamSta /usr/local/bin/
+Copy ApRoamSur/ApRoamSur /usr/local/bin/
+
+# Copy over init.d script.
+Copy etc/init.d/server/ApRoamControl /etc/init.d/
+
+Make sure the aprdir matches what is used in the Main (/usr/local/bin) ApRoamControl script.
+
