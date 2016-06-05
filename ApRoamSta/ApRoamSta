@@ -19,7 +19,7 @@ nc -l -p $PORT > $aprdir/$AP/station.dump 2>/dev/null &
 pid=$!
 
 # Trigger Access Point To Send Station Data.
-nc -q0 $ADDRESS $STAPORT 2>/dev/null
+nc -q0 -w1 $ADDRESS $STAPORT 2>/dev/null
 ERROR=$?
 if [ "$ERROR" -gt "0" ]; then
 	kill $pid >/dev/null 2>&1
