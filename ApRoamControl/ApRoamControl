@@ -133,7 +133,9 @@ do
                 else
                         SURPORT="7${COUNT}"
                 fi
-                ApRoamSur ${APADDRESS[${COUNT}]} $SURPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
+		# Kill Any Previous APRoamSur Processes
+		pkill -f -o "nc -l -p ${SURPORT}"
+		ApRoamSur ${APADDRESS[${COUNT}]} $SURPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		## Retrieve Access Station Dump. ##
 		APSTATIONS[${COUNT}]=`grep "Station" $aprdir/AP${COUNT}/station.dump 2>/dev/null | awk '{print $2}'`
 		rm -f $aprdir/AP${COUNT}/station.dump >/dev/null 2>&1
@@ -142,6 +144,8 @@ do
 		else
 			STAPORT="6${COUNT}"
 		fi
+		# Kill Any Previous APRoamSta Processes.
+		pkill -f -o "nc -l -p ${STAPORT}"
 		ApRoamSta ${APADDRESS[${COUNT}]} $STAPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		# Combine All Stations.
 		if [ "$STATIONS" != "" ]; then
@@ -209,7 +213,8 @@ do
                 else
                         SRVPORT="4${COUNT}"
                 fi
-                ApRoamSrv ${APADDRESS[${COUNT}]} $SRVPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
+		pkill -f -o "ApRoamSrv ${APADDRESS[${COUNT}]} ${SRVPORT} AP${COUNT} ${LOOPTIME}"
+		ApRoamSrv ${APADDRESS[${COUNT}]} $SRVPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		COUNT=$(($COUNT+1))
 	done
 
