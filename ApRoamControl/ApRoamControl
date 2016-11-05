@@ -57,6 +57,7 @@ DEAUTHLOG='1'
 
 #### INTIALIZE ARRAYS, VARIABLES AND CLEAN UP. ####
 declare -a APADDRESS
+declare -a APMAC
 declare -a APNOISE
 declare -a APSNR
 declare -a APSTATIONS
@@ -64,6 +65,9 @@ APCOUNT='3'
 APADDRESS[1]='192.168.1.2'
 APADDRESS[2]='192.168.1.4'
 APADDRESS[3]='192.168.1.8'
+APMAC[1]='f8:1a:67:32:f0:cd'
+APMAC[2]='14:cc:20:5e:94:03'
+APMAC[3]='c4:6e:1f:5b:2a:40'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
 DEFAULTNOISE='-88'
@@ -206,14 +210,16 @@ do
         while [ "${COUNT}" -le "$APCOUNT" ]
         do
 		# Preprocess Network Data By Greping Out Unwanted Packets.
-		tcpdump -e -t -r $aprdir/AP${COUNT}/AP${COUNT}_network.dump 2>/dev/null | grep -E -v 'Acknowledgment|Beacon|Broadcast|Data' | grep -v "(oui Unknown) BA" > $aprdir/AP${COUNT}_network.dump
+		tcpdump -e -t -r $aprdir/AP${COUNT}/AP${COUNT}_network.dump 2>/dev/null > $aprdir/AP${COUNT}_network.dump
 		rm -f $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
                 if [ "$COUNT" -lt "10" ]; then
                         SRVPORT="40${COUNT}"
                 else
                         SRVPORT="4${COUNT}"
                 fi
+		# Kill Any Previous APRoamSrv Processes.
 		pkill -f -o "ApRoamSrv ${APADDRESS[${COUNT}]} ${SRVPORT} AP${COUNT} ${LOOPTIME}"
+		pkill -f -o "nc -l -p ${SRVPORT}"
 		ApRoamSrv ${APADDRESS[${COUNT}]} $SRVPORT AP${COUNT} $LOOPTIME >/dev/null 2>&1 &
 		COUNT=$(($COUNT+1))
 	done
@@ -231,6 +237,7 @@ do
 
 		#### DETECT THE ACCESS POINT THE STATION IS CONNECTED TO, RETRIEVE THE STATIONS SIGNAL LEVELS ON THE ACCESS POINTS AND CALCULATE THE SIGNAL TO NOISE RATIOS. ####
 
+		CONNECTEDAPMAC=''
 		COUNT='1'
 		while [ "${COUNT}" -le "$APCOUNT" ]
 		do
@@ -238,9 +245,10 @@ do
 			CONNECTEDTOAP=`echo "${APSTATIONS[${COUNT}]}" | grep -c $STATION`
                         if [ "$CONNECTEDTOAP" -gt "0" ]; then
                                 APCONNECTED="${COUNT}"
+				CONNECTEDAPMAC="${APMAC[${COUNT}]}"
                         fi
 			# Retrieve The Stations Signal Levels On The Access Points And Calculate The Signal To Noise Ratios.
-			APSIGNAL=`grep $STATION $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+			APSIGNAL=`grep "SA:${STATION}" $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep "DA:${CONNECTEDAPMAC}" | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
 			if [ "$APSIGNAL" = "" ]; then
 				APSNR[${COUNT}]=0
 			elif [ "$APSIGNAL" -le "${APNOISE[${COUNT}]}" ]; then
