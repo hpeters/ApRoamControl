@@ -70,7 +70,8 @@ APMAC[2]='14:cc:20:5e:94:03'
 APMAC[3]='c4:6e:1f:5b:2a:40'
 DEAUTHPORT='555'
 DEAUTHSTATION='1'
-DEFAULTNOISE='-88'
+DEFAULTNOISE='-92'
+MAXNOISE='-85'
 KEEPALIVELOOP='10'
 LOOPTIME='10'
 MAXSNR='80'
@@ -128,8 +129,11 @@ do
 			else
 				APNOISE[${COUNT}]=$DEFAULTNOISE
 			fi
-		else
+ 		elif  [ "${APNOISE[${COUNT}]}" -le "${MAXNOISE}" ]; then
 			echo ${APNOISE[${COUNT}]} > $aprdir/AP${COUNT}prevnoise
+		else
+			# Bad Noise Reading Detected Set To Maximum.
+			APNOISE[${COUNT}]=$MAXNOISE
 		fi
 		rm -f $aprdir/AP${COUNT}/survey.dump >/dev/null 2>&1
                 if [ "$COUNT" -lt "10" ]; then
