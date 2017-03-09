@@ -213,7 +213,7 @@ do
         COUNT='1'
         while [ "${COUNT}" -le "$APCOUNT" ]
         do
-		# Preprocess Network Data By Greping Out Unwanted Packets.
+		# Preprocess Network Data.
 		tcpdump -e -t -r $aprdir/AP${COUNT}/AP${COUNT}_network.dump 2>/dev/null > $aprdir/AP${COUNT}_network.dump
 		rm -f $aprdir/AP${COUNT}/network.lock >/dev/null 2>&1
                 if [ "$COUNT" -lt "10" ]; then
@@ -252,7 +252,10 @@ do
 				CONNECTEDAPMAC="${APMAC[${COUNT}]}"
                         fi
 			# Retrieve The Stations Signal Levels On The Access Points And Calculate The Signal To Noise Ratios.
-			APSIGNAL=`grep "SA:${STATION}" $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep "DA:${CONNECTEDAPMAC}" | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1  | tail -1`
+			APSIGNAL=`grep "SA:${STATION}" $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep "DA:${CONNECTEDAPMAC}" | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1 | tail -1`
+			if [ "$APSIGNAL" = "" ]; then
+				APSIGNAL=`grep "SA:${STATION}" $aprdir/AP${COUNT}_network.dump 2>/dev/null | grep "BSSID:${CONNECTEDAPMAC}" | grep -E -o "\-[0-9]{1,2}dB" | cut -d 'd' -f1 | tail -1`
+			fi
 			if [ "$APSIGNAL" = "" ]; then
 				APSNR[${COUNT}]=0
 			elif [ "$APSIGNAL" -le "${APNOISE[${COUNT}]}" ]; then
